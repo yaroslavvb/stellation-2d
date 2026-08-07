@@ -20,6 +20,11 @@ import {
   type LabMode,
 } from "./share-state";
 import {
+  diagramSideForModifiers,
+  type DiagramModifierKeys,
+} from "./diagram-interaction";
+import { applySelectionAction } from "./selection";
+import {
   DEFAULT_THEME_PREFERENCE,
   nextThemePreference,
   normalizeThemePreference,
@@ -250,7 +255,13 @@ export default function PolygonLab() {
   );
   const [diagramView, setDiagramView] = useState({ center: 0, zoom: 1 });
   const viewDrag = useRef<DragState | null>(null);
-  const diagramDrag = useRef<{ x: number; center: number; moved: number } | null>(null);
+  const diagramDrag = useRef<{
+    x: number;
+    center: number;
+    moved: number;
+    segmentId: number | null;
+  } | null>(null);
+  const diagramCtrlClickHandled = useRef(false);
   const parsedHash = useRef<ReturnType<typeof parseShareHash>>(null);
   const hashReady = useRef(false);
   const skipHashWrite = useRef(false);
@@ -299,21 +310,30 @@ export default function PolygonLab() {
     }
     if (hoverSegment !== null) {
       const segment = arrangement.diagram[hoverSegment];
-      for (const cellId of [segment?.aboveCellId, segment?.belowCellId]) {
+      const diagramSide = modifiers.shift
+        ? "below"
+        : modifiers.remove
+          ? "above"
+          : null;
+      const diagramCells = diagramSide === "above"
+        ? [segment?.aboveCellId]
+        : diagramSide === "below"
+          ? [segment?.belowCellId]
+          : [segment?.aboveCellId, segment?.belowCellId];
+      for (const cellId of diagramCells) {
         if (cellId === null || cellId === undefined) continue;
         const orbit = orbitMap.byCell.get(cellId);
         for (const member of orbit?.cellIds ?? [cellId]) result.add(member);
       }
     }
     return result;
-  }, [arrangement, hoverCell, hoverSegment, orbitMap]);
+  }, [arrangement, hoverCell, hoverSegment, modifiers, orbitMap]);
 
   const commit = useCallback(
     (nextOrUpdater: Set<number> | ((current: Set<number>) => Set<number>), message: string) => {
       setSelected((current) => {
         const next =
           typeof nextOrUpdater === "function" ? nextOrUpdater(current) : nextOrUpdater;
-        next.add(arrangement.coreCellId);
         if (setEquals(current, next)) return current;
         setPast((items) => [...items.slice(-99), new Set(current)]);
         setFuture([]);
@@ -321,7 +341,7 @@ export default function PolygonLab() {
         return next;
       });
     },
-    [arrangement.coreCellId],
+    [],
   );
 
   const orbitAction = useCallback(
@@ -332,13 +352,7 @@ export default function PolygonLab() {
       }
       const label = `${orbitName(orbit)}${withSupport ? " + lower cells" : ""}`;
       commit((current) => {
-        const next = new Set(current);
-        const shouldAdd = action === "add" || (action === "toggle" && [...targets].some((id) => !next.has(id)));
-        for (const cellId of targets) {
-          if (shouldAdd) next.add(cellId);
-          else if (cellId !== arrangement.coreCellId) next.delete(cellId);
-        }
-        return next;
+        return applySelectionAction(current, targets, action);
       }, `${shouldAddText(action, selected, targets)} ${label}`);
     },
     [arrangement, commit, orbitMap, selected],
@@ -451,7 +465,7 @@ export default function PolygonLab() {
       parsedHash.current.symmetry.family !== symmetry.family ||
       parsedHash.current.symmetry.order !== symmetry.order
     ) return;
-    const restored = new Set<number>([arrangement.coreCellId]);
+    const restored = new Set<number>();
     for (const orbitId of parsedHash.current.orbitIds) {
       for (const cellId of orbitMap.orbits[orbitId]?.cellIds ?? []) restored.add(cellId);
     }
@@ -463,7 +477,7 @@ export default function PolygonLab() {
     );
     skipHashWrite.current = true;
     hashReady.current = true;
-  }, [arrangement.coreCellId, orbitMap, sides, symmetry]);
+  }, [orbitMap, sides, symmetry]);
 
   useEffect(() => {
     if (!hashReady.current) return;
@@ -509,9 +523,7 @@ export default function PolygonLab() {
     const next = { family: match[1] as "C" | "D", order: Number(match[2]) };
     const nextOrbitMap = buildOrbitMap(arrangement, next);
     setSelected((current) => {
-      const invariant = buildInvariantSet(current, nextOrbitMap);
-      invariant.add(arrangement.coreCellId);
-      return invariant;
+      return buildInvariantSet(current, nextOrbitMap);
     });
     setSymmetry(next);
     setStatus(`Cells regrouped under ${next.family}${next.order}`);
@@ -569,7 +581,15 @@ export default function PolygonLab() {
   };
 
   const diagramPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
-    diagramDrag.current = { x: event.clientX, center: diagramView.center, moved: 0 };
+    diagramCtrlClickHandled.current = false;
+    if (event.button === 2) return;
+    const target = (event.target as Element).closest<SVGElement>("[data-segment-id]");
+    diagramDrag.current = {
+      x: event.clientX,
+      center: diagramCenter,
+      moved: 0,
+      segmentId: target ? Number(target.dataset.segmentId) : null,
+    };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
@@ -588,12 +608,16 @@ export default function PolygonLab() {
   };
 
   const diagramPointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+    const drag = diagramDrag.current;
     diagramDrag.current = null;
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
     } catch {
       // The pointer may already have been released by the browser.
     }
+    if (!drag || drag.moved >= 4 || drag.segmentId === null) return;
+    diagramCtrlClickHandled.current = Boolean(event.ctrlKey);
+    actOnDiagram(drag.segmentId, event);
   };
 
   const diagramWheel = (event: React.WheelEvent<SVGSVGElement>) => {
@@ -607,17 +631,14 @@ export default function PolygonLab() {
 
   const actOnDiagram = (
     segmentId: number,
-    event: React.MouseEvent<SVGRectElement> | React.KeyboardEvent<SVGRectElement>,
+    event: DiagramModifierKeys,
   ) => {
     const segment = arrangement.diagram[segmentId];
-    const wantsBelow = event.ctrlKey || event.metaKey || event.altKey;
-    const cellId = event.shiftKey
-      ? segment.aboveCellId
-      : wantsBelow
-        ? segment.belowCellId
-        : null;
+    const side = diagramSideForModifiers(event);
+    if (!side) return;
+    const cellId = side === "below" ? segment.belowCellId : segment.aboveCellId;
     if (cellId === null) {
-      if (event.shiftKey || wantsBelow) setStatus(`No bounded cell ${event.shiftKey ? "above" : "below"} this interval`);
+      setStatus(`No bounded cell ${side} this interval`);
       return;
     }
     const orbit = orbitMap.byCell.get(cellId);
@@ -689,8 +710,9 @@ export default function PolygonLab() {
   const baseDiagramSpan = Math.max(1e-6, arrangement.diagramExtent[1] - arrangement.diagramExtent[0]);
   const diagramSpan = (baseDiagramSpan * 1.14) / diagramView.zoom;
   const diagramCenter = diagramView.center || (arrangement.diagramExtent[0] + arrangement.diagramExtent[1]) / 2;
-  const diagramViewBox = `${diagramCenter - diagramSpan / 2} 0 ${diagramSpan} 100`;
-  const diagramStroke = diagramSpan / 480;
+  const diagramStart = diagramCenter - diagramSpan / 2;
+  const diagramX = (position: number) => ((position - diagramStart) / diagramSpan) * 1000;
+  const diagramViewBox = "0 0 1000 100";
   const facetDiagramSpan = Math.max(1e-6, facetDiagram.extent[1] - facetDiagram.extent[0]) * 1.28;
   const facetDiagramCenter = (facetDiagram.extent[0] + facetDiagram.extent[1]) / 2;
   const facetDiagramViewBox = `${facetDiagramCenter - facetDiagramSpan / 2} 0 ${facetDiagramSpan} 100`;
@@ -959,11 +981,10 @@ export default function PolygonLab() {
             >
               <line
                 className="diagram-rail"
-                x1={arrangement.diagramExtent[0]}
-                x2={arrangement.diagramExtent[1]}
+                x1={diagramX(arrangement.diagramExtent[0])}
+                x2={diagramX(arrangement.diagramExtent[1])}
                 y1="50"
                 y2="50"
-                strokeWidth={diagramStroke * 2.2}
               />
               {arrangement.diagram.map((segment) => {
                 const upperCell = segment.aboveCellId === null ? null : arrangement.cells[segment.aboveCellId];
@@ -972,61 +993,75 @@ export default function PolygonLab() {
                 const lowerOrbit = lowerCell ? orbitMap.byCell.get(lowerCell.id) : null;
                 const upperSelected = upperCell ? selected.has(upperCell.id) : false;
                 const lowerSelected = lowerCell ? selected.has(lowerCell.id) : false;
-                const hovering =
-                  hoverSegment === segment.id ||
-                  [segment.aboveCellId, segment.belowCellId].some(
-                    (cellId) => cellId !== null && highlightedCells.has(cellId),
-                  );
-                const upperPreview = hovering && modifiers.shift;
-                const lowerPreview = hovering && modifiers.remove;
-                const width = segment.t1 - segment.t0;
+                const hovering = hoverSegment === segment.id;
+                const previewSide = hovering
+                  ? modifiers.shift
+                    ? "below"
+                    : modifiers.remove
+                      ? "above"
+                      : null
+                  : null;
+                const previewCell = previewSide === "above" ? upperCell : previewSide === "below" ? lowerCell : null;
+                const previewing = previewSide !== null && previewCell !== null;
+                const shownUpperSelected = previewing && previewSide === "above" ? !upperSelected : upperSelected;
+                const shownLowerSelected = previewing && previewSide === "below" ? !lowerSelected : lowerSelected;
+                const boundaryCell = shownUpperSelected !== shownLowerSelected
+                  ? shownUpperSelected
+                    ? upperCell
+                    : lowerCell
+                  : null;
+                const x0 = diagramX(segment.t0);
+                const x1 = diagramX(segment.t1);
+                const width = x1 - x0;
                 return (
                   <g key={segment.id} className={hovering ? "diagram-segment is-hovered" : "diagram-segment"}>
-                    <rect
-                      className={`diagram-band upper ${upperSelected ? "is-selected" : ""} ${upperPreview ? "is-preview" : ""} ${upperCell ? "" : "is-empty"}`}
-                      x={segment.t0}
-                      y="9"
-                      width={width}
-                      height="36"
-                      fill={upperCell ? layerColor(upperCell.layer) : "transparent"}
+                    <line
+                      className={`diagram-interval ${boundaryCell ? "is-boundary" : "is-internal"} ${previewing ? "is-preview" : ""}`}
+                      x1={x0}
+                      x2={x1}
+                      y1="50"
+                      y2="50"
+                      stroke={
+                        previewing
+                          ? previewSide === "above"
+                            ? "var(--upper)"
+                            : "var(--lower)"
+                          : boundaryCell
+                            ? layerColor(boundaryCell.layer)
+                            : undefined
+                      }
                     />
-                    <rect
-                      className={`diagram-band lower ${lowerSelected ? "is-selected" : ""} ${lowerPreview ? "is-preview" : ""} ${lowerCell ? "" : "is-empty"}`}
-                      x={segment.t0}
-                      y="55"
-                      width={width}
-                      height="36"
-                      fill={lowerCell ? layerColor(lowerCell.layer) : "transparent"}
-                    />
-                    {upperOrbit && width > diagramSpan * 0.07 ? (
-                      <text className="diagram-label" x={(segment.t0 + segment.t1) / 2} y="31">
+                    {upperOrbit && width > 70 ? (
+                      <text className="diagram-label" x={(x0 + x1) / 2} y="29">
                         O{upperOrbit.id + 1}
                       </text>
                     ) : null}
-                    {lowerOrbit && width > diagramSpan * 0.07 ? (
-                      <text className="diagram-label" x={(segment.t0 + segment.t1) / 2} y="78">
+                    {lowerOrbit && width > 70 ? (
+                      <text className="diagram-label" x={(x0 + x1) / 2} y="72">
                         O{lowerOrbit.id + 1}
                       </text>
                     ) : null}
-                    <line className="diagram-tick" x1={segment.t0} x2={segment.t0} y1="43" y2="57" strokeWidth={diagramStroke} />
+                    <line className="diagram-tick" x1={x0} x2={x0} y1="44" y2="56" />
                     {segment.id === arrangement.diagram.length - 1 ? (
-                      <line className="diagram-tick" x1={segment.t1} x2={segment.t1} y1="43" y2="57" strokeWidth={diagramStroke} />
+                      <line className="diagram-tick" x1={x1} x2={x1} y1="44" y2="56" />
                     ) : null}
                     <rect
                       className="diagram-hit"
-                      x={segment.t0}
+                      x={x0}
                       y="4"
                       width={width}
                       height="92"
                       data-segment-id={segment.id}
                       tabIndex={0}
                       role="button"
-                      aria-label={`Interval ${segment.id + 1}. Shift toggles ${upperOrbit ? orbitName(upperOrbit) : "no cell"} above. Control or Option toggles ${lowerOrbit ? orbitName(lowerOrbit) : "no cell"} below.`}
+                      aria-label={`Interval ${segment.id + 1}. Shift toggles ${lowerOrbit ? orbitName(lowerOrbit) : "no cell"} below. Control or Option toggles ${upperOrbit ? orbitName(upperOrbit) : "no cell"} above.`}
                       onPointerEnter={() => setHoverSegment(segment.id)}
-                      onClick={(event) => actOnDiagram(segment.id, event)}
                       onContextMenu={(event) => {
                         event.preventDefault();
-                        if (event.ctrlKey) actOnDiagram(segment.id, event);
+                        if (event.ctrlKey && !diagramCtrlClickHandled.current) {
+                          actOnDiagram(segment.id, event);
+                        }
+                        diagramCtrlClickHandled.current = false;
                       }}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
@@ -1129,7 +1164,7 @@ export default function PolygonLab() {
               </span>
               <span>
                 {mode === "stellation" ? (
-                  <><kbd>shift</kbd> toggle above · <kbd>ctrl / ⌥</kbd> toggle below</>
+                  <><kbd>shift</kbd> toggle below · <kbd>ctrl / ⌥</kbd> toggle above</>
                 ) : (
                   <>click a pair to choose the complete closed circuit</>
                 )}
@@ -1198,12 +1233,12 @@ export default function PolygonLab() {
               <span className="eyebrow">Cells</span>
               <span className="section-index">02</span>
             </div>
-            <div className="cell-toolbar">
+            <div className="cell-toolbar stellation-toolbar">
               <button type="button" onClick={() => commit(new Set(coreOrbit?.cellIds ?? [arrangement.coreCellId]), "Core selected")}>core</button>
               <button
                 type="button"
                 onClick={() => {
-                  const currentMax = Math.max(0, ...arrangement.cells.filter((cell) => selected.has(cell.id)).map((cell) => cell.layer));
+                  const currentMax = Math.max(-1, ...arrangement.cells.filter((cell) => selected.has(cell.id)).map((cell) => cell.layer));
                   const targetLayer = Math.min(maxLayer, currentMax + 1);
                   commit(new Set(arrangement.cells.filter((cell) => cell.layer <= targetLayer).map((cell) => cell.id)), `Layers 0–${targetLayer} selected`);
                 }}
@@ -1211,6 +1246,7 @@ export default function PolygonLab() {
                 + layer
               </button>
               <button type="button" onClick={() => commit(new Set(arrangement.cells.map((cell) => cell.id)), "All bounded cells selected")}>all</button>
+              <button type="button" onClick={() => commit(new Set(), "Selection cleared")}>clear</button>
               <button type="button" onClick={undo} disabled={!past.length} aria-label="Undo">↶</button>
               <button type="button" onClick={redo} disabled={!future.length} aria-label="Redo">↷</button>
             </div>

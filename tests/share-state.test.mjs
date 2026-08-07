@@ -60,6 +60,22 @@ test("round-trips both terminology modes through canonical v2 hashes", () => {
   }
 });
 
+test("round-trips a completely empty stellation selection", () => {
+  const state = {
+    mode: "stellation",
+    sides: 5,
+    symmetry: { family: "D", order: 5 },
+    orbitIds: [],
+    facetStep: 1,
+  };
+
+  assert.equal(
+    formatShareHash(state),
+    "#v=2&mode=stellation&n=5&sym=D5&st=&fa=1",
+  );
+  assert.deepEqual(parseShareHash(formatShareHash(state)), state);
+});
+
 test("rejects invalid shared geometry and malformed input safely", () => {
   for (const hash of [
     "",

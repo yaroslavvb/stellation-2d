@@ -534,54 +534,53 @@ kbd {
 
 .diagram-rail {
   stroke: var(--text);
+  stroke-width: 1.5;
   opacity: 0.92;
   vector-effect: non-scaling-stroke;
 }
 
 .diagram-tick {
   stroke: var(--text);
+  stroke-width: 1;
   opacity: 0.72;
   vector-effect: non-scaling-stroke;
 }
 
-.diagram-band {
-  opacity: 0.065;
-  stroke: color-mix(in srgb, var(--text) 15%, transparent);
-  stroke-width: 0.35;
-  vector-effect: non-scaling-stroke;
-  transition: opacity 100ms ease;
-}
-
-.diagram-band.upper {
-  stroke-dasharray: 3 2;
-}
-
-.diagram-band.lower {
-  stroke-dasharray: 1 0;
-}
-
-.diagram-band.is-selected {
-  opacity: 0.46;
-}
-
-.diagram-band.is-preview {
-  opacity: 0.82;
+.diagram-interval {
+  opacity: 0.16;
   stroke: var(--text);
-  stroke-width: 1.1;
+  stroke-width: 2;
+  stroke-linecap: butt;
+  vector-effect: non-scaling-stroke;
+  transition: opacity 100ms ease, stroke-width 100ms ease;
 }
 
-.diagram-band.is-empty {
-  fill: transparent;
+.diagram-interval.is-boundary {
+  opacity: 0.94;
+  stroke-width: 6;
+  filter: drop-shadow(0 0 2px color-mix(in srgb, currentColor 28%, transparent));
+}
+
+.diagram-interval.is-preview {
+  opacity: 1;
+  stroke-width: 8;
+}
+
+.diagram-interval.is-internal {
   stroke: color-mix(in srgb, var(--text) 9%, transparent);
-  stroke-dasharray: 2 3;
+  stroke-width: 2;
+  stroke-dasharray: 4 5;
+  filter: none;
 }
 
-.diagram-segment.is-hovered .diagram-band:not(.is-empty) {
-  opacity: 0.33;
+.diagram-interval.is-internal.is-preview {
+  opacity: 0.42;
+  stroke-dasharray: 4 4;
 }
 
-.diagram-segment.is-hovered .diagram-band.is-selected {
-  opacity: 0.68;
+.diagram-segment.is-hovered .diagram-interval.is-boundary,
+.diagram-segment.is-hovered .diagram-interval.is-preview {
+  opacity: 1;
 }
 
 .diagram-label {
@@ -762,6 +761,10 @@ kbd {
   grid-template-columns: 1fr 1fr 0.72fr 31px 31px;
   gap: 4px;
   margin-bottom: 9px;
+}
+
+.stellation-toolbar {
+  grid-template-columns: 1fr 1fr 0.72fr 0.72fr 31px 31px;
 }
 
 .cell-toolbar button {

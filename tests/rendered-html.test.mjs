@@ -37,6 +37,11 @@ test("server-renders Stellation by default with both construction modes availabl
   assert.match(html, />◐<\/span>/);
   assert.match(html, /Supporting lines, stellation cells/);
   assert.match(html, /Cells immediately above and below the line/);
+  assert.match(html, /<button type="button">clear<\/button>/);
+  assert.match(html, /<kbd>shift<\/kbd> toggle below/);
+  assert.match(html, /<kbd>ctrl \/ ⌥<\/kbd> toggle above/);
+  assert.doesNotMatch(html, /diagram-band/);
+  assert.equal(html.match(/class="diagram-interval/g)?.length, 3);
   assert.match(html, /Stellation correspondence/);
   assert.match(html, /<b>5<\/b> lines/);
   assert.match(html, /<b>6<\/b> bounded cells/);
