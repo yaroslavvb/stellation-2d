@@ -1,5 +1,5 @@
-import FacettingLab from "./FacettingLab";
+import StellationLab from "./StellationLab";
 
 export default function Home() {
-  return <FacettingLab />;
+  return <StellationLab />;
 }

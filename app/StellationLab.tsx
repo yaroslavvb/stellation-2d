@@ -102,7 +102,7 @@ function buildInvariantSet(
   return result;
 }
 
-export default function FacettingLab() {
+export default function StellationLab() {
   const [sides, setSides] = useState(5);
   const [symmetry, setSymmetry] = useState<Symmetry>({ family: "D", order: 5 });
   const arrangement = useMemo(() => buildArrangement(sides), [sides]);
@@ -431,11 +431,11 @@ export default function FacettingLab() {
   const diagramStroke = diagramSpan / 480;
 
   return (
-    <div className="facetting-app">
+    <div className="stellation-app">
       <header className="app-header">
-        <div className="brand" aria-label="Facetting 2D">
+        <div className="brand" aria-label="Stellation 2D">
           <span className="brand-mark">◇</span>
-          <span>Facetting</span>
+          <span>Stellation</span>
           <b>2D</b>
         </div>
         <div className="header-stats" aria-label="Current arrangement statistics">
@@ -459,12 +459,12 @@ export default function FacettingLab() {
       </header>
 
       <main className="app-main">
-        <section className="stage" aria-label="Facetting views">
+        <section className="stage" aria-label="Stellation views">
           <div className="view-panel spatial-panel">
             <div className="view-heading">
               <div>
                 <span className="eyebrow">2D view</span>
-                <h1>Extended sides, bounded cells</h1>
+                <h1>Supporting lines, stellation cells</h1>
               </div>
               <div className="view-actions">
                 <button type="button" onClick={() => setView({ x: 0, y: 0, zoom: 1 })}>fit</button>
@@ -694,7 +694,7 @@ export default function FacettingLab() {
           </div>
         </section>
 
-        <aside className="control-panel" aria-label="Facetting controls">
+        <aside className="control-panel" aria-label="Stellation controls">
           <section className="control-section setup-section">
             <div className="section-title">
               <span className="eyebrow">Construction</span>
@@ -727,7 +727,7 @@ export default function FacettingLab() {
               </select>
             </label>
             <p className="section-note">
-              Every side is extended to a line. Only bounded regions remain; symmetry groups them into selectable orbits.
+              Extending every side creates the polygon&apos;s stellation arrangement. Its bounded cells are grouped into selectable symmetry orbits.
             </p>
           </section>
 
@@ -807,7 +807,7 @@ export default function FacettingLab() {
 
           <section className="control-section explainer-section">
             <div className="section-title">
-              <span className="eyebrow">Dimensional analogy</span>
+              <span className="eyebrow">Stellation correspondence</span>
               <span className="section-index">03</span>
             </div>
             <div className="analogy-grid">
@@ -816,7 +816,7 @@ export default function FacettingLab() {
               <span>2D diagram</span><b>→</b><span>1D segmented line</span>
             </div>
             <p className="section-note">
-              Facetting a polygon here is the planar dual view of stellating a polyhedron: the same supporting lines, followed farther.
+              This is the original stellation construction reduced by one dimension: supporting lines continue beyond the core polygon and bound selectable stellation cells.
             </p>
           </section>
         </aside>

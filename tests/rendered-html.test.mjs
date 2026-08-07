@@ -20,16 +20,16 @@ async function render() {
   );
 }
 
-test("server-renders the completed Facetting 2D interface", async () => {
+test("server-renders the completed Stellation 2D interface", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Facetting 2D/);
-  assert.match(html, /Extended sides, bounded cells/);
+  assert.match(html, /<title>Stellation 2D/);
+  assert.match(html, /Supporting lines, stellation cells/);
   assert.match(html, /Cells immediately above and below the line/);
-  assert.match(html, /Dimensional analogy/);
+  assert.match(html, /Stellation correspondence/);
   assert.match(html, /<b>5<\/b> lines/);
   assert.match(html, /<b>6<\/b> bounded cells/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Your site is taking shape/i);

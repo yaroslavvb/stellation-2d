@@ -1,6 +1,6 @@
-# Facetting 2D
+# Stellation 2D
 
-An interactive dimensional analogue of Vladimir Bulatov's stellation app.
+An interactive, one-dimension-lower counterpart to Vladimir Bulatov's stellation app.
 
 - A regular polygon's sides are extended to infinite lines.
 - The resulting bounded planar cells are grouped into cyclic or dihedral symmetry orbits.
@@ -29,7 +29,7 @@ npm run build:pages
 
 This project reduces the original app by one dimension:
 
-| Original stellation app | Facetting 2D |
+| Original stellation app | Stellation 2D |
 | --- | --- |
 | polyhedron faces | polygon sides |
 | planes in 3D | lines in 2D |

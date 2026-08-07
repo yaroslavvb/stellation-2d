@@ -3,18 +3,18 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://yaroslavvb.github.io/stellation-2d/"),
-  title: "Facetting 2D — Interactive polygon cell explorer",
+  title: "Stellation 2D — Interactive polygon stellation explorer",
   description:
-    "Extend a regular polygon's sides, explore the bounded cells they form, and see the exact one-dimensional diagram beneath the construction.",
-  applicationName: "Facetting 2D",
+    "Extend a regular polygon's sides, assemble stellations from the bounded cells they form, and explore the exact one-dimensional diagram beneath the construction.",
+  applicationName: "Stellation 2D",
   authors: [{ name: "Yaroslav Bulatov" }],
   icons: {
     icon: "./favicon.svg",
     shortcut: "./favicon.svg",
   },
   openGraph: {
-    title: "Facetting 2D",
-    description: "A dimensional analogue of the stellation app: 2D cells with a 1D diagram.",
+    title: "Stellation 2D",
+    description: "The stellation app reduced by one dimension: 2D cells with a linked 1D diagram.",
     type: "website",
     url: "https://yaroslavvb.github.io/stellation-2d/",
     images: [
@@ -22,14 +22,14 @@ export const metadata: Metadata = {
         url: "https://yaroslavvb.github.io/stellation-2d/og.png",
         width: 1536,
         height: 1024,
-        alt: "Facetting 2D pentagon line arrangement and one-dimensional diagram",
+        alt: "Stellation 2D pentagon line arrangement and one-dimensional diagram",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Facetting 2D",
-    description: "Explore planar facetting through linked 2D and 1D views.",
+    title: "Stellation 2D",
+    description: "Explore polygon stellations through linked 2D and 1D views.",
     images: ["https://yaroslavvb.github.io/stellation-2d/og.png"],
   },
 };
