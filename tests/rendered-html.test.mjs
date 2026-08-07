@@ -20,13 +20,16 @@ async function render() {
   );
 }
 
-test("server-renders the completed Stellation 2D interface", async () => {
+test("server-renders Stellation by default with both construction modes available", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Stellation 2D/);
+  assert.match(html, /<title>Stellation &amp; Facetting 2D/);
+  assert.match(html, /aria-label="Construction mode"/);
+  assert.match(html, /aria-pressed="true">Stellation<\/button>/);
+  assert.match(html, /aria-pressed="false">Facetting<\/button>/);
   assert.match(html, /Supporting lines, stellation cells/);
   assert.match(html, /Cells immediately above and below the line/);
   assert.match(html, /Stellation correspondence/);

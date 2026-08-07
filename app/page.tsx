@@ -1,5 +1,5 @@
-import StellationLab from "./StellationLab";
+import PolygonLab from "./PolygonLab";
 
 export default function Home() {
-  return <StellationLab />;
+  return <PolygonLab />;
 }

@@ -53,6 +53,62 @@ export type OrbitMap = {
   byCell: Map<number, Orbit>;
 };
 
+export type FacettingOption = {
+  step: number;
+  componentCount: number;
+  verticesPerComponent: number;
+  reducedStep: number;
+};
+
+export type FacettingEdge = {
+  id: number;
+  componentId: number;
+  vertexIds: [number, number];
+  points: [Point, Point];
+  length: number;
+};
+
+export type FacettingComponent = {
+  id: number;
+  vertexIds: number[];
+  edgeIds: number[];
+};
+
+export type FacettingResult = {
+  sides: number;
+  step: number;
+  vertices: Point[];
+  edges: FacettingEdge[];
+  cycles: number[][];
+  components: FacettingComponent[];
+  componentCount: number;
+  verticesPerComponent: number;
+  chordLength: number;
+  extent: number;
+};
+
+export type FacettingDiagramPoint = {
+  step: number;
+  targetVertexId: number;
+  position: number;
+  point: Point;
+};
+
+export type FacettingDiagramPair = {
+  step: number;
+  points: [FacettingDiagramPoint, FacettingDiagramPoint];
+};
+
+export type FacettingDiagram = {
+  referenceVertexId: number;
+  referenceVertex: Point;
+  cutOrigin: Point;
+  cutNormal: Point;
+  cutDirection: Point;
+  pairs: FacettingDiagramPair[];
+  extent: [number, number];
+};
+
 const EPS = 1e-8;
 const KEY_SCALE = 1e8;
 
@@ -64,6 +120,25 @@ function distance2(a: Point, b: Point) {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return dx * dx + dy * dy;
+}
+
+function distance(a: Point, b: Point) {
+  return Math.sqrt(distance2(a, b));
+}
+
+function dot(a: Point, b: Point) {
+  return a.x * b.x + a.y * b.y;
+}
+
+function greatestCommonDivisor(a: number, b: number) {
+  let left = Math.abs(a);
+  let right = Math.abs(b);
+  while (right !== 0) {
+    const remainder = left % right;
+    left = right;
+    right = remainder;
+  }
+  return left;
 }
 
 function pointKey(point: Point) {
@@ -176,6 +251,181 @@ export function symmetryLabel(symmetry: Symmetry, sides: number) {
           ? "individual cells"
           : "rotation subgroup";
   return `${symmetry.family}${symmetry.order} · ${description}`;
+}
+
+export function facettingOptions(sides: number): FacettingOption[] {
+  if (!Number.isInteger(sides) || sides < 3) {
+    throw new Error("Polygon side count must be an integer of at least 3.");
+  }
+
+  return Array.from({ length: Math.floor((sides - 1) / 2) }, (_, index) => {
+    const step = index + 1;
+    const componentCount = greatestCommonDivisor(sides, step);
+    return {
+      step,
+      componentCount,
+      verticesPerComponent: sides / componentCount,
+      reducedStep: step / componentCount,
+    };
+  });
+}
+
+function coreVertices(arrangement: Arrangement) {
+  const core = arrangement.cells[arrangement.coreCellId];
+  if (!core || core.vertices.length !== arrangement.sides) {
+    throw new Error("The arrangement core is not the expected regular polygon.");
+  }
+
+  const vertices = core.vertices.map((point) => ({ ...point }));
+  const area = signedArea(vertices);
+  if (Math.abs(area) < EPS) throw new Error("The arrangement core polygon is degenerate.");
+  if (area < 0) vertices.reverse();
+  return vertices;
+}
+
+export function buildFacetting(arrangement: Arrangement, step: number): FacettingResult {
+  const { sides } = arrangement;
+  if (sides % 2 === 0 && step === sides / 2) {
+    throw new Error("The diameter step does not form closed polygonal cycles.");
+  }
+
+  const option = facettingOptions(sides).find((candidate) => candidate.step === step);
+  if (!option || !Number.isInteger(step)) {
+    throw new Error(`Facetting step must be an integer from 1 to ${Math.floor((sides - 1) / 2)}.`);
+  }
+
+  const vertices = coreVertices(arrangement);
+  const edges: FacettingEdge[] = [];
+  const cycles: number[][] = [];
+  const components: FacettingComponent[] = [];
+
+  for (let componentId = 0; componentId < option.componentCount; componentId += 1) {
+    const vertexIds: number[] = [];
+    let vertexId = componentId;
+    do {
+      vertexIds.push(vertexId);
+      vertexId = (vertexId + step) % sides;
+    } while (vertexId !== componentId);
+
+    const edgeIds: number[] = [];
+    for (let index = 0; index < vertexIds.length; index += 1) {
+      const fromVertexId = vertexIds[index];
+      const toVertexId = vertexIds[(index + 1) % vertexIds.length];
+      const edge: FacettingEdge = {
+        id: edges.length,
+        componentId,
+        vertexIds: [fromVertexId, toVertexId],
+        points: [vertices[fromVertexId], vertices[toVertexId]],
+        length: distance(vertices[fromVertexId], vertices[toVertexId]),
+      };
+      edges.push(edge);
+      edgeIds.push(edge.id);
+    }
+
+    cycles.push([...vertexIds]);
+    components.push({ id: componentId, vertexIds, edgeIds });
+  }
+
+  const chordLength = edges[0]?.length ?? 0;
+  const extent = Math.max(
+    1,
+    ...vertices.flatMap((point) => [Math.abs(point.x), Math.abs(point.y)]),
+  );
+
+  return {
+    sides,
+    step,
+    vertices,
+    edges,
+    cycles,
+    components,
+    componentCount: option.componentCount,
+    verticesPerComponent: option.verticesPerComponent,
+    chordLength,
+    extent,
+  };
+}
+
+export function buildFacettingDiagram(
+  arrangement: Arrangement,
+  referenceVertexId = 0,
+): FacettingDiagram {
+  const vertices = coreVertices(arrangement);
+  const { sides } = arrangement;
+  if (
+    !Number.isInteger(referenceVertexId) ||
+    referenceVertexId < 0 ||
+    referenceVertexId >= sides
+  ) {
+    throw new Error(`Reference vertex must be an integer from 0 to ${sides - 1}.`);
+  }
+
+  const center = polygonCentroid(vertices);
+  const referenceVertex = vertices[referenceVertexId];
+  const radial = {
+    x: referenceVertex.x - center.x,
+    y: referenceVertex.y - center.y,
+  };
+  const radialLength = Math.hypot(radial.x, radial.y);
+  if (radialLength < EPS) throw new Error("The reference vertex has no radial direction.");
+
+  const cutNormal = { x: radial.x / radialLength, y: radial.y / radialLength };
+  const cutDirection = { x: -cutNormal.y, y: cutNormal.x };
+  const relativeToCenter = (point: Point) => ({ x: point.x - center.x, y: point.y - center.y });
+  const referenceProjection = dot(relativeToCenter(referenceVertex), cutNormal);
+  const nearestOtherProjection = Math.max(
+    ...vertices
+      .filter((_, vertexId) => vertexId !== referenceVertexId)
+      .map((point) => dot(relativeToCenter(point), cutNormal)),
+  );
+  const cutProjection = (referenceProjection + nearestOtherProjection) / 2;
+  const cutOrigin = {
+    x: center.x + cutNormal.x * cutProjection,
+    y: center.y + cutNormal.y * cutProjection,
+  };
+
+  const diagramPoint = (step: number, targetVertexId: number): FacettingDiagramPoint => {
+    const target = vertices[targetVertexId];
+    const chord = {
+      x: target.x - referenceVertex.x,
+      y: target.y - referenceVertex.y,
+    };
+    const denominator = dot(chord, cutNormal);
+    if (Math.abs(denominator) < EPS) {
+      throw new Error("A candidate chord is parallel to the facetting diagram cut.");
+    }
+    const scale = (cutProjection - referenceProjection) / denominator;
+    const point = {
+      x: referenceVertex.x + chord.x * scale,
+      y: referenceVertex.y + chord.y * scale,
+    };
+    return {
+      step,
+      targetVertexId,
+      position: dot({ x: point.x - cutOrigin.x, y: point.y - cutOrigin.y }, cutDirection),
+      point,
+    };
+  };
+
+  const pairs = facettingOptions(sides).map(({ step }) => {
+    const previous = (referenceVertexId - step + sides) % sides;
+    const next = (referenceVertexId + step) % sides;
+    const points = [diagramPoint(step, previous), diagramPoint(step, next)].sort(
+      (a, b) => a.position - b.position,
+    ) as [FacettingDiagramPoint, FacettingDiagramPoint];
+    return { step, points };
+  });
+  const positions = pairs.flatMap((pair) => pair.points.map((point) => point.position));
+
+  return {
+    referenceVertexId,
+    referenceVertex,
+    cutOrigin,
+    cutNormal,
+    cutDirection,
+    pairs,
+    extent: [Math.min(...positions), Math.max(...positions)],
+  };
 }
 
 export function buildArrangement(sides: number): Arrangement {
