@@ -26,6 +26,7 @@
   --layer-5: #91c56e;
   --layer-6: #e6a45f;
   --layer-7: #6fc4ec;
+  --construction-line: #6d7788;
   --grid-stroke: rgba(255, 255, 255, 0.028);
   --cell-label-ink: #11151c;
   --cell-label-outline: rgba(255, 255, 255, 0.78);
@@ -44,7 +45,7 @@
   --line-strong: #aeb8c8;
   --text: #14181f;
   --muted: #5d6678;
-  --dim: #6d7788;
+  --dim: #636e81;
   --gold: #9b6500;
   --cyan: #2563c9;
   --upper: #4f62bf;
@@ -59,6 +60,7 @@
   --layer-5: #5c873b;
   --layer-6: #ae6417;
   --layer-7: #247fae;
+  --construction-line: #657084;
   --grid-stroke: rgba(20, 24, 31, 0.055);
 }
 
@@ -369,10 +371,10 @@ kbd {
 }
 
 .arrangement-lines line {
-  stroke: color-mix(in srgb, var(--muted) 68%, var(--panel));
+  stroke: var(--construction-line);
   stroke-width: 0.007;
   vector-effect: non-scaling-stroke;
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
 .arrangement-cell {
@@ -421,7 +423,7 @@ kbd {
 
 .source-polygon {
   fill: color-mix(in srgb, var(--gold) 2.5%, transparent);
-  stroke: var(--line-strong);
+  stroke: var(--construction-line);
   stroke-width: 0.012;
   stroke-dasharray: 0.055 0.035;
   vector-effect: non-scaling-stroke;
@@ -921,7 +923,7 @@ kbd {
 }
 
 .facet-option b {
-  color: var(--facet-color);
+  color: color-mix(in srgb, var(--facet-color) 85%, var(--text));
   font: 650 12px var(--mono);
 }
 

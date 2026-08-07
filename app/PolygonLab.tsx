@@ -25,6 +25,7 @@ import {
   normalizeThemePreference,
   resolveTheme,
   storedThemePreference,
+  themePreferenceFromStorageChange,
   THEME_MEDIA_QUERY,
   THEME_STORAGE_KEY,
   type ThemePreference,
@@ -128,8 +129,9 @@ function subscribeThemePreference(onStoreChange: () => void) {
     onStoreChange();
   };
   const handleStorage = (event: StorageEvent) => {
-    if (event.key !== THEME_STORAGE_KEY) return;
-    applyThemePreference(normalizeThemePreference(event.newValue));
+    const next = themePreferenceFromStorageChange(event.key, event.newValue);
+    if (!next) return;
+    applyThemePreference(next);
     onStoreChange();
   };
   media?.addEventListener("change", handleSystemChange);

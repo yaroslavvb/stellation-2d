@@ -9,6 +9,7 @@ import {
   storedThemePreference,
   THEME_BOOTSTRAP_SCRIPT,
   THEME_STORAGE_KEY,
+  themePreferenceFromStorageChange,
 } from "../app/theme.ts";
 
 function runBootstrap(stored, systemDark, storageThrows = false) {
@@ -67,6 +68,13 @@ test("cycles in Great Stella order", () => {
   assert.equal(nextThemePreference("system"), "light");
   assert.equal(nextThemePreference("light"), "dark");
   assert.equal(nextThemePreference("dark"), "system");
+});
+
+test("storage changes sync the preference and clear resets to System", () => {
+  assert.equal(themePreferenceFromStorageChange("theme", "dark"), "dark");
+  assert.equal(themePreferenceFromStorageChange("theme", null), "system");
+  assert.equal(themePreferenceFromStorageChange(null, null), "system");
+  assert.equal(themePreferenceFromStorageChange("unrelated", "light"), null);
 });
 
 test("pre-paint bootstrap resolves stored and blocked-storage preferences", () => {

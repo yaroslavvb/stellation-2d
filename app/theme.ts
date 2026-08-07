@@ -29,6 +29,14 @@ export function nextThemePreference(preference: ThemePreference): ThemePreferenc
   return "system";
 }
 
+export function themePreferenceFromStorageChange(
+  key: string | null,
+  newValue: string | null,
+) {
+  if (key !== THEME_STORAGE_KEY && key !== null) return null;
+  return normalizeThemePreference(newValue);
+}
+
 export const THEME_BOOTSTRAP_SCRIPT = `(() => {
   const root = document.documentElement;
   let preference = "auto";
