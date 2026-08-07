@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { THEME_BOOTSTRAP_SCRIPT } from "./theme";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://yaroslavvb.github.io/stellation-2d/"),
@@ -38,12 +39,18 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: "#090b10",
-  colorScheme: "dark",
+  colorScheme: "light dark",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          id="theme-bootstrap"
+          dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

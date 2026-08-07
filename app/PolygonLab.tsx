@@ -20,11 +20,22 @@ import {
   type LabMode,
 } from "./share-state";
 import {
+  DEFAULT_THEME_PREFERENCE,
+  nextThemePreference,
+  normalizeThemePreference,
+  resolveTheme,
+  storedThemePreference,
+  THEME_MEDIA_QUERY,
+  THEME_STORAGE_KEY,
+  type ThemePreference,
+} from "./theme";
+import {
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 type ModifierState = {
@@ -51,17 +62,95 @@ function freshViews(): Record<LabMode, ViewState> {
 }
 
 const LAYER_COLORS = [
-  "#f4bd55",
-  "#ef7d68",
-  "#67c9c2",
-  "#8da8ff",
-  "#c18de3",
-  "#91c56e",
-  "#e6a45f",
-  "#6fc4ec",
+  "var(--layer-0)",
+  "var(--layer-1)",
+  "var(--layer-2)",
+  "var(--layer-3)",
+  "var(--layer-4)",
+  "var(--layer-5)",
+  "var(--layer-6)",
+  "var(--layer-7)",
 ];
 
 const EMPTY_MODIFIERS: ModifierState = { shift: false, remove: false };
+const THEME_GLYPHS: Record<ThemePreference, string> = {
+  system: "◐",
+  light: "○",
+  dark: "●",
+};
+const THEME_LABELS: Record<ThemePreference, string> = {
+  system: "System",
+  light: "Light",
+  dark: "Dark",
+};
+const THEME_CHANGE_EVENT = "stellation-theme-change";
+
+function applyThemePreference(preference: ThemePreference) {
+  if (typeof window === "undefined") return;
+  const systemDark =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia(THEME_MEDIA_QUERY).matches;
+  const resolved = resolveTheme(preference, systemDark);
+  const root = document.documentElement;
+  root.dataset.theme = resolved;
+  root.dataset.themePref = storedThemePreference(preference);
+  root.style.colorScheme = resolved;
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", resolved === "dark" ? "#090b10" : "#f2f4f7");
+}
+
+function getThemePreferenceSnapshot() {
+  if (typeof document === "undefined") return DEFAULT_THEME_PREFERENCE;
+  const attribute = document.documentElement.dataset.themePref;
+  if (attribute) return normalizeThemePreference(attribute);
+  try {
+    return normalizeThemePreference(localStorage.getItem(THEME_STORAGE_KEY));
+  } catch {
+    return DEFAULT_THEME_PREFERENCE;
+  }
+}
+
+function getThemePreferenceServerSnapshot() {
+  return DEFAULT_THEME_PREFERENCE;
+}
+
+function subscribeThemePreference(onStoreChange: () => void) {
+  if (typeof window === "undefined") return () => {};
+  applyThemePreference(getThemePreferenceSnapshot());
+  const media =
+    typeof window.matchMedia === "function"
+      ? window.matchMedia(THEME_MEDIA_QUERY)
+      : null;
+  const handleSystemChange = () => {
+    if (getThemePreferenceSnapshot() !== "system") return;
+    applyThemePreference("system");
+    onStoreChange();
+  };
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key !== THEME_STORAGE_KEY) return;
+    applyThemePreference(normalizeThemePreference(event.newValue));
+    onStoreChange();
+  };
+  media?.addEventListener("change", handleSystemChange);
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener(THEME_CHANGE_EVENT, onStoreChange);
+  return () => {
+    media?.removeEventListener("change", handleSystemChange);
+    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener(THEME_CHANGE_EVENT, onStoreChange);
+  };
+}
+
+function selectThemePreference(preference: ThemePreference) {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, storedThemePreference(preference));
+  } catch {
+    // The active theme still changes for this page when persistence is blocked.
+  }
+  applyThemePreference(preference);
+  window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+}
 
 function layerColor(layer: number) {
   return LAYER_COLORS[layer % LAYER_COLORS.length];
@@ -137,6 +226,11 @@ export default function PolygonLab() {
   const [hoverFacetStep, setHoverFacetStep] = useState<number | null>(null);
   const [modifiers, setModifiers] = useState<ModifierState>(EMPTY_MODIFIERS);
   const [copied, setCopied] = useState(false);
+  const themePreference = useSyncExternalStore(
+    subscribeThemePreference,
+    getThemePreferenceSnapshot,
+    getThemePreferenceServerSnapshot,
+  );
   const [status, setStatus] = useState("Core selected");
   const [views, setViews] = useState<Record<LabMode, ViewState>>(freshViews);
   const view = views[mode];
@@ -582,6 +676,10 @@ export default function PolygonLab() {
     }
   };
 
+  const cycleTheme = () => {
+    selectThemePreference(nextThemePreference(themePreference));
+  };
+
   const spatialExtent = mode === "stellation" ? arrangement.extent : facetting.extent * 1.16;
   const viewSpan = (spatialExtent * 2.34) / view.zoom;
   const viewBox = `${view.x - viewSpan / 2} ${view.y - viewSpan / 2} ${viewSpan} ${viewSpan}`;
@@ -637,6 +735,15 @@ export default function PolygonLab() {
         >
           3D original ↗
         </a>
+        <button
+          className="ghost-button theme-button"
+          type="button"
+          aria-label={`Theme: ${THEME_LABELS[themePreference]}`}
+          title={`${THEME_LABELS[themePreference]} theme · click for ${THEME_LABELS[nextThemePreference(themePreference)]}`}
+          onClick={cycleTheme}
+        >
+          <span aria-hidden="true">{THEME_GLYPHS[themePreference]}</span>
+        </button>
       </header>
 
       <main className="app-main">
@@ -673,7 +780,7 @@ export default function PolygonLab() {
             >
               <defs>
                 <pattern id="micro-grid" width="0.2" height="0.2" patternUnits="userSpaceOnUse">
-                  <path d="M 0.2 0 L 0 0 0 0.2" fill="none" stroke="rgba(255,255,255,.028)" strokeWidth="0.006" />
+                  <path d="M 0.2 0 L 0 0 0 0.2" fill="none" stroke="var(--grid-stroke)" strokeWidth="0.006" />
                 </pattern>
                 <filter id="selected-glow" x="-20%" y="-20%" width="140%" height="140%">
                   <feGaussianBlur stdDeviation="0.022" result="blur" />

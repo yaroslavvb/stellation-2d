@@ -30,6 +30,11 @@ test("server-renders Stellation by default with both construction modes availabl
   assert.match(html, /aria-label="Construction mode"/);
   assert.match(html, /aria-pressed="true">Stellation<\/button>/);
   assert.match(html, /aria-pressed="false">Facetting<\/button>/);
+  assert.match(html, /id="theme-bootstrap"/);
+  assert.match(html, /prefers-color-scheme: dark/);
+  assert.match(html, /aria-label="Theme: System"/);
+  assert.match(html, /title="System theme · click for Light"/);
+  assert.match(html, />◐<\/span>/);
   assert.match(html, /Supporting lines, stellation cells/);
   assert.match(html, /Cells immediately above and below the line/);
   assert.match(html, /Stellation correspondence/);
