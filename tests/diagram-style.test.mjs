@@ -2,22 +2,37 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
-test("diagram uses independent solid upper and lower occupancy tracks", async () => {
+test("diagram gives upper and lower rails and occupancy tracks identical styling", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const component = await readFile(new URL("../app/PolygonLab.tsx", import.meta.url), "utf8");
-  const upperRail = css.match(/\.diagram-rail\.above\s*\{([^}]*)\}/)?.[1] ?? "";
-  const lowerRail = css.match(/\.diagram-rail\.below\s*\{([^}]*)\}/)?.[1] ?? "";
+  const rail = css.match(/\.diagram-rail\s*\{([^}]*)\}/)?.[1] ?? "";
+  const legendTracks = css.match(/\.diagram-legend \.upper-key,\s*\.diagram-legend \.lower-key\s*\{([^}]*)\}/)?.[1] ?? "";
+  const legendColors = css.match(/\.upper-key,\s*\.lower-key\s*\{([^}]*)\}/)?.[1] ?? "";
   const occupancy = css.match(/\.diagram-occupancy\s*\{([^}]*)\}/)?.[1] ?? "";
-  const lower = css.match(/\.diagram-occupancy\.below\s*\{([^}]*)\}/)?.[1] ?? "";
   const occupied = css.match(/\.diagram-occupancy\.is-occupied\s*\{([^}]*)\}/)?.[1] ?? "";
 
-  assert.match(upperRail, /stroke-width:\s*4px\s*;/);
-  assert.match(lowerRail, /stroke-width:\s*2px\s*;/);
+  assert.match(rail, /stroke:\s*var\(--text\)\s*;/);
+  assert.match(rail, /stroke-width:\s*4px\s*;/);
+  assert.match(rail, /stroke-linecap:\s*butt\s*;/);
+  assert.match(rail, /opacity:\s*0\.24\s*;/);
+  assert.doesNotMatch(css, /\.diagram-rail\.(?:above|below)\s*\{/);
+
+  assert.match(legendTracks, /height:\s*4px\s*;/);
+  assert.match(legendColors, /background:\s*var\(--upper\)\s*;/);
+
+  assert.match(occupancy, /--diagram-track-color:\s*var\(--upper\)\s*;/);
+  assert.match(occupancy, /stroke:\s*var\(--diagram-track-color\)\s*;/);
   assert.match(occupancy, /stroke-width:\s*4px\s*;/);
+  assert.match(occupancy, /stroke-linecap:\s*butt\s*;/);
   assert.match(occupancy, /stroke-dasharray:\s*4px 5px\s*;/);
-  assert.match(lower, /stroke-width:\s*2px\s*;/);
+  assert.match(occupancy, /opacity:\s*0\.3\s*;/);
+  assert.doesNotMatch(css, /\.diagram-occupancy\.(?:above|below|outermost)\s*\{/);
   assert.match(occupied, /stroke-dasharray:\s*none\s*;/);
   assert.match(occupied, /opacity:\s*1\s*;/);
+
+  const outerColorOverride = 'style={{ "--diagram-track-color": outermostColor } as React.CSSProperties}';
+  assert.equal(component.split(outerColorOverride).length - 1, 1, "only the outermost ray overrides the shared track color");
+  assert.match(component, /"outermost",[\s\S]*?data-diagram-track="outer"[\s\S]*?style=\{\{ "--diagram-track-color": outermostColor \} as React\.CSSProperties\}/);
   assert.match(component, /data-occupied=\{upperSelected\}/);
   assert.match(component, /data-occupied=\{lowerSelected\}/);
   assert.doesNotMatch(component, /const boundaryCell = upperSelected !== lowerSelected/);

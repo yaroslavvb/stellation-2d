@@ -589,29 +589,21 @@ kbd {
   border-radius: 99px;
 }
 
-.diagram-legend .upper-key { height: 4px; }
-.diagram-legend .lower-key { height: 2px; }
+.diagram-legend .upper-key,
+.diagram-legend .lower-key { height: 4px; }
 
-.upper-key { background: var(--upper); }
-.lower-key { background: var(--lower); }
+.upper-key,
+.lower-key { background: var(--upper); }
 .facet-selected-key { background: var(--gold); }
 .facet-candidate-key { background: var(--line-strong); }
 
 .diagram-rail {
   stroke: var(--text);
+  stroke-width: 4px;
   stroke-linecap: butt;
+  opacity: 0.24;
   pointer-events: none;
   vector-effect: non-scaling-stroke;
-}
-
-.diagram-rail.above {
-  stroke-width: 4px;
-  opacity: 0.24;
-}
-
-.diagram-rail.below {
-  stroke-width: 2px;
-  opacity: 0.18;
 }
 
 .diagram-tick {
@@ -632,16 +624,6 @@ kbd {
   pointer-events: none;
   vector-effect: non-scaling-stroke;
   transition: opacity 100ms ease, stroke 100ms ease;
-}
-
-.diagram-occupancy.below {
-  --diagram-track-color: var(--lower);
-  stroke-width: 2px;
-  stroke-dasharray: 3px 4px;
-}
-
-.diagram-occupancy.outermost {
-  stroke-width: 2px;
 }
 
 .diagram-occupancy.is-occupied {
