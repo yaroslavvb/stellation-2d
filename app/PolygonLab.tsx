@@ -21,6 +21,8 @@ import {
   type LabMode,
 } from "./share-state";
 import {
+  DIAGRAM_HIT_BANDS,
+  DIAGRAM_LABEL_Y,
   diagramSpanAtZoom,
   diagramSpanForMatchingSpatialScale,
   diagramViewportPosition,
@@ -1336,7 +1338,7 @@ export default function PolygonLab() {
                       <text
                         className={`diagram-outer-label ${raySelected ? "is-selected" : ""} ${previewOutermost ? "is-preview" : ""}`}
                         x={(ray.x0 + ray.x1) / 2}
-                        y={diagramY(72)}
+                        y={diagramY(DIAGRAM_LABEL_Y.outer)}
                         style={{ "--outermost-color": outermostColor } as React.CSSProperties}
                       >
                         outer O{(orbit?.id ?? ray.cellId) + 1}
@@ -1345,9 +1347,9 @@ export default function PolygonLab() {
                     <rect
                       className="diagram-outer-hit"
                       x={ray.x0}
-                      y={diagramY(53)}
+                      y={diagramY(DIAGRAM_HIT_BANDS.outer.start)}
                       width={width}
-                      height={diagramY(25)}
+                      height={diagramY(DIAGRAM_HIT_BANDS.outer.end - DIAGRAM_HIT_BANDS.outer.start)}
                       data-segment-id={ray.cellId}
                       data-diagram-action="outer"
                       data-diagram-outer="true"
@@ -1418,12 +1420,12 @@ export default function PolygonLab() {
                       aria-hidden="true"
                     />
                     {upperOrbit && width > 70 ? (
-                      <text className="diagram-label" x={(x0 + x1) / 2} y={diagramY(29)}>
+                      <text className="diagram-label" x={(x0 + x1) / 2} y={diagramY(DIAGRAM_LABEL_Y.above)}>
                         O{upperOrbit.id + 1}
                       </text>
                     ) : null}
                     {lowerOrbit && width > 70 ? (
-                      <text className="diagram-label" x={(x0 + x1) / 2} y={diagramY(72)}>
+                      <text className="diagram-label" x={(x0 + x1) / 2} y={diagramY(DIAGRAM_LABEL_Y.below)}>
                         O{lowerOrbit.id + 1}
                       </text>
                     ) : null}
@@ -1431,7 +1433,7 @@ export default function PolygonLab() {
                       <text
                         className={`diagram-plane-label ${planeSelected ? "is-selected" : ""} ${previewPlane ? "is-preview" : ""}`}
                         x={(x0 + x1) / 2}
-                        y={diagramY(89)}
+                        y={diagramY(DIAGRAM_LABEL_Y.plane)}
                       >
                         plane
                       </text>
@@ -1443,9 +1445,9 @@ export default function PolygonLab() {
                     <rect
                       className={`diagram-hit above ${upperCell ? "" : "is-empty"}`}
                       x={x0}
-                      y={diagramY(42)}
+                      y={diagramY(DIAGRAM_HIT_BANDS.above.start)}
                       width={width}
-                      height={diagramY(13)}
+                      height={diagramY(DIAGRAM_HIT_BANDS.above.end - DIAGRAM_HIT_BANDS.above.start)}
                       data-segment-id={segment.id}
                       data-diagram-action="above"
                       data-diagram-side="above"
@@ -1468,9 +1470,9 @@ export default function PolygonLab() {
                     <rect
                       className={`diagram-hit below ${lowerCell ? "" : "is-empty"}`}
                       x={x0}
-                      y={diagramY(53)}
+                      y={diagramY(DIAGRAM_HIT_BANDS.below.start)}
                       width={width}
-                      height={diagramY(25)}
+                      height={diagramY(DIAGRAM_HIT_BANDS.below.end - DIAGRAM_HIT_BANDS.below.start)}
                       data-segment-id={segment.id}
                       data-diagram-action="below"
                       data-diagram-side="below"
@@ -1494,9 +1496,9 @@ export default function PolygonLab() {
                       <rect
                         className="diagram-plane-hit"
                         x={x0}
-                        y={diagramY(78)}
+                        y={diagramY(DIAGRAM_HIT_BANDS.plane.start)}
                         width={width}
-                        height={diagramY(18)}
+                        height={diagramY(DIAGRAM_HIT_BANDS.plane.end - DIAGRAM_HIT_BANDS.plane.start)}
                         data-segment-id={segment.id}
                         data-diagram-action="plane"
                         data-diagram-plane="true"

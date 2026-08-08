@@ -8,6 +8,20 @@ export type DiagramNeighbors = {
 
 export const DIAGRAM_DRAG_THRESHOLD_PX = 5;
 
+export const DIAGRAM_LABEL_Y = {
+  above: 29,
+  below: 72,
+  plane: 89,
+  outer: 72,
+} as const;
+
+export const DIAGRAM_HIT_BANDS = {
+  above: { start: 42, end: 54 },
+  below: { start: 54, end: 83 },
+  plane: { start: 83, end: 100 },
+  outer: { start: 54, end: 100 },
+} as const;
+
 export function diagramCellForSide(
   segment: DiagramNeighbors,
   side: DiagramSide,

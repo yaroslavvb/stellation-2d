@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  DIAGRAM_HIT_BANDS,
+  DIAGRAM_LABEL_Y,
   diagramCellForSide,
   diagramSpanAtZoom,
   diagramSpanForMatchingSpatialScale,
@@ -9,6 +11,36 @@ import {
   spatialLengthInDiagramUnits,
 } from "../app/diagram-interaction.ts";
 import { buildArrangement, buildFacetting } from "../app/geometry.ts";
+
+test("keeps the lower-cell and plane pointer bands distinct and usable", () => {
+  const contains = (band, position) =>
+    position >= band.start && position < band.end;
+  const above = DIAGRAM_HIT_BANDS.above;
+  const lower = DIAGRAM_HIT_BANDS.below;
+  const plane = DIAGRAM_HIT_BANDS.plane;
+
+  assert.equal(above.end, lower.start, "above and lower bands are adjacent");
+  assert.ok(lower.start < lower.end);
+  assert.ok(plane.start < plane.end);
+  assert.equal(lower.end, plane.start, "lower and plane bands are adjacent");
+  assert.equal(
+    Math.max(lower.start, plane.start) < Math.min(lower.end, plane.end),
+    false,
+    "lower and plane bands do not overlap",
+  );
+
+  assert.equal(contains(lower, DIAGRAM_LABEL_Y.below), true);
+  assert.ok(
+    lower.end - DIAGRAM_LABEL_Y.below >= 10,
+    "the lower-cell target extends meaningfully below its label",
+  );
+  assert.equal(contains(plane, DIAGRAM_LABEL_Y.plane), true);
+
+  assert.equal(contains(lower, 80), true, "a click below O2 still selects O2");
+  assert.equal(contains(plane, 80), false);
+  assert.equal(contains(lower, 89), false);
+  assert.equal(contains(plane, 89), true, "a click on the plane label selects the plane");
+});
 
 test("maps direct diagram hit regions to their adjacent cells", () => {
   const segment = { aboveCellId: 7, belowCellId: 11 };
