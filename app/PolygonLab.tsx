@@ -1351,10 +1351,8 @@ export default function PolygonLab() {
                       data-segment-id={ray.cellId}
                       data-diagram-action="outer"
                       data-diagram-outer="true"
-                      tabIndex={0}
-                      role="button"
-                      aria-pressed={raySelected}
-                      aria-label={`${ray.label} outer ray below. Toggle outer O${(orbit?.id ?? ray.cellId) + 1}.`}
+                      focusable="false"
+                      aria-hidden="true"
                       onPointerEnter={() => {
                         setHoverSegment(null);
                         setHoverDiagramSide(null);
@@ -1367,28 +1365,7 @@ export default function PolygonLab() {
                         setHoverOutermost(null);
                         setHoverPlane(false);
                       }}
-                      onFocus={() => {
-                        setHoverSegment(null);
-                        setHoverDiagramSide(null);
-                        setHoverOutermost(ray.cellId);
-                        setHoverPlane(false);
-                      }}
-                      onBlur={() => {
-                        setHoverSegment(null);
-                        setHoverDiagramSide(null);
-                        setHoverOutermost(null);
-                        setHoverPlane(false);
-                      }}
                       onContextMenu={(event) => event.preventDefault()}
-                      onClick={(event) => {
-                        if (event.detail === 0) actOnDiagram(ray.cellId, "outer");
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          actOnDiagram(ray.cellId, "outer");
-                        }
-                      }}
                     />
                   </g>
                 );
@@ -1472,11 +1449,8 @@ export default function PolygonLab() {
                       data-segment-id={segment.id}
                       data-diagram-action="above"
                       data-diagram-side="above"
-                      tabIndex={upperCell ? 0 : -1}
-                      role={upperCell ? "button" : undefined}
-                      aria-disabled={!upperCell}
-                      aria-pressed={upperCell ? upperSelected : undefined}
-                      aria-label={`Interval ${segment.id + 1} above. Toggle ${upperOrbit ? orbitName(upperOrbit) : "no bounded cell"}.`}
+                      focusable="false"
+                      aria-hidden="true"
                       onPointerEnter={() => {
                         setHoverSegment(segment.id);
                         setHoverDiagramSide("above");
@@ -1489,28 +1463,7 @@ export default function PolygonLab() {
                         setHoverOutermost(null);
                         setHoverPlane(false);
                       }}
-                      onFocus={() => {
-                        setHoverSegment(segment.id);
-                        setHoverDiagramSide("above");
-                        setHoverOutermost(null);
-                        setHoverPlane(false);
-                      }}
-                      onBlur={() => {
-                        setHoverSegment(null);
-                        setHoverDiagramSide(null);
-                        setHoverOutermost(null);
-                        setHoverPlane(false);
-                      }}
                       onContextMenu={(event) => event.preventDefault()}
-                      onClick={(event) => {
-                        if (event.detail === 0 && upperCell) actOnDiagram(segment.id, "above");
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          actOnDiagram(segment.id, "above");
-                        }
-                      }}
                     />
                     <rect
                       className={`diagram-hit below ${lowerCell ? "" : "is-empty"}`}
@@ -1521,11 +1474,8 @@ export default function PolygonLab() {
                       data-segment-id={segment.id}
                       data-diagram-action="below"
                       data-diagram-side="below"
-                      tabIndex={lowerCell ? 0 : -1}
-                      role={lowerCell ? "button" : undefined}
-                      aria-disabled={!lowerCell}
-                      aria-pressed={lowerCell ? lowerSelected : undefined}
-                      aria-label={`Interval ${segment.id + 1} below. Toggle ${lowerOrbit ? orbitName(lowerOrbit) : "no bounded cell"}.`}
+                      focusable="false"
+                      aria-hidden="true"
                       onPointerEnter={() => {
                         setHoverSegment(segment.id);
                         setHoverDiagramSide("below");
@@ -1538,28 +1488,7 @@ export default function PolygonLab() {
                         setHoverOutermost(null);
                         setHoverPlane(false);
                       }}
-                      onFocus={() => {
-                        setHoverSegment(segment.id);
-                        setHoverDiagramSide("below");
-                        setHoverOutermost(null);
-                        setHoverPlane(false);
-                      }}
-                      onBlur={() => {
-                        setHoverSegment(null);
-                        setHoverDiagramSide(null);
-                        setHoverOutermost(null);
-                        setHoverPlane(false);
-                      }}
                       onContextMenu={(event) => event.preventDefault()}
-                      onClick={(event) => {
-                        if (event.detail === 0 && lowerCell) actOnDiagram(segment.id, "below");
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          actOnDiagram(segment.id, "below");
-                        }
-                      }}
                     />
                     {isReferenceEdge ? (
                       <rect
@@ -1571,10 +1500,8 @@ export default function PolygonLab() {
                         data-segment-id={segment.id}
                         data-diagram-action="plane"
                         data-diagram-plane="true"
-                        tabIndex={0}
-                        role="button"
-                        aria-pressed={planeSelected}
-                        aria-label="Below the polygon edge. Toggle entire plane."
+                        focusable="false"
+                        aria-hidden="true"
                         onPointerEnter={() => {
                           setHoverSegment(segment.id);
                           setHoverDiagramSide(null);
@@ -1587,28 +1514,7 @@ export default function PolygonLab() {
                           setHoverOutermost(null);
                           setHoverPlane(false);
                         }}
-                        onFocus={() => {
-                          setHoverSegment(segment.id);
-                          setHoverDiagramSide(null);
-                          setHoverOutermost(null);
-                          setHoverPlane(true);
-                        }}
-                        onBlur={() => {
-                          setHoverSegment(null);
-                          setHoverDiagramSide(null);
-                          setHoverOutermost(null);
-                          setHoverPlane(false);
-                        }}
                         onContextMenu={(event) => event.preventDefault()}
-                        onClick={(event) => {
-                          if (event.detail === 0) actOnDiagram(segment.id, "plane");
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            actOnDiagram(segment.id, "plane");
-                          }
-                        }}
                       />
                     ) : null}
                   </g>

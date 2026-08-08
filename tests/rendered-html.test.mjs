@@ -58,11 +58,20 @@ test("server-renders Stellation by default with both construction modes availabl
   assert.equal(html.match(/data-segment-id="2"/g)?.length, 2);
   assert.equal(html.match(/data-segment-id="3"/g)?.length, 1);
   assert.match(html, /role="group" aria-label="One-dimensional arrangement/);
-  assert.equal(html.match(/aria-pressed="(?:true|false)" aria-label="Interval/g)?.length, 4);
+  const diagramTargets = [...html.matchAll(/<rect\b(?=[^>]*\bdata-diagram-action="[^"]+")[^>]*>/g)].map(
+    ([tag]) => tag,
+  );
+  assert.equal(diagramTargets.length, 9);
+  for (const target of diagramTargets) {
+    assert.match(target, /\bfocusable="false"/);
+    assert.match(target, /\baria-hidden="true"/);
+    assert.doesNotMatch(target, /\btabindex=/);
+    assert.doesNotMatch(target, /\brole=/);
+    assert.doesNotMatch(target, /\baria-pressed=/);
+    assert.doesNotMatch(target, /\baria-label=/);
+  }
   assert.equal(html.match(/data-diagram-outer="true"/g)?.length, 2);
-  assert.match(html, /aria-label="Left outer ray below. Toggle outer O1."/);
-  assert.match(html, /aria-label="Right outer ray below. Toggle outer O1."/);
-  assert.match(html, /data-diagram-plane="true" tabindex="0" role="button" aria-pressed="false" aria-label="Below the polygon edge. Toggle entire plane."/);
+  assert.match(html, /data-diagram-plane="true" focusable="false" aria-hidden="true"/);
   assert.match(html, /class="spatial-canvas" data-outermost-selected="false" data-plane-selected="false"/);
   assert.match(html, /class="outermost-region-layer" aria-hidden="true"/);
   assert.equal(html.match(/class="outermost-region"/g)?.length, 5);

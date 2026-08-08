@@ -738,13 +738,13 @@ kbd {
   cursor: pointer;
 }
 
-.diagram-hit:focus,
-.diagram-hit:focus-visible,
-.diagram-outer-hit:focus,
-.diagram-outer-hit:focus-visible,
-.diagram-plane-hit:focus,
-.diagram-plane-hit:focus-visible {
-  outline: none;
+.diagram-canvas [data-diagram-action],
+.diagram-canvas [data-diagram-action]:focus,
+.diagram-canvas [data-diagram-action]:focus-visible {
+  outline: 0 !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .facet-link-canvas,

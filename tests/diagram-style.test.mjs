@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 test("diagram uses independent solid upper and lower occupancy tracks", async () => {
@@ -23,11 +23,11 @@ test("diagram uses independent solid upper and lower occupancy tracks", async ()
   assert.doesNotMatch(component, /const boundaryCell = upperSelected !== lowerSelected/);
 });
 
-test("diagram segment controls stay invisible while focus remains line-local", async () => {
+test("diagram pointer targets stay invisible and cannot draw a focus frame", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const hit = css.match(/\.diagram-hit\s*\{([^}]*)\}/)?.[1] ?? "";
   const empty = css.match(/\.diagram-hit\.is-empty\s*\{([^}]*)\}/)?.[1] ?? "";
-  const focusRule = css.match(/(\.diagram-hit:focus,[^{]*)\{([^}]*)\}/);
+  const focusRule = css.match(/(\.diagram-canvas \[data-diagram-action\],[^{]*)\{([^}]*)\}/);
   const focusSelectors = focusRule?.[1] ?? "";
   const focus = focusRule?.[2] ?? "";
   const occupiedPreview = css.match(/\.diagram-occupancy\.is-occupied\.is-preview\s*\{([^}]*)\}/)?.[1] ?? "";
@@ -37,27 +37,40 @@ test("diagram segment controls stay invisible while focus remains line-local", a
   assert.match(hit, /outline:\s*none\s*;/);
   assert.match(hit, /cursor:\s*pointer\s*;/);
   assert.match(empty, /pointer-events:\s*none\s*;/);
-  assert.match(focusSelectors, /\.diagram-hit:focus-visible/);
-  assert.match(focusSelectors, /\.diagram-outer-hit:focus/);
-  assert.match(focusSelectors, /\.diagram-outer-hit:focus-visible/);
-  assert.match(focusSelectors, /\.diagram-plane-hit:focus/);
-  assert.match(focusSelectors, /\.diagram-plane-hit:focus-visible/);
-  assert.match(focus, /outline:\s*none\s*;/);
+  assert.match(focusSelectors, /\.diagram-canvas \[data-diagram-action\]:focus/);
+  assert.match(focusSelectors, /\.diagram-canvas \[data-diagram-action\]:focus-visible/);
+  assert.match(focus, /outline:\s*0\s*!important\s*;/);
+  assert.match(focus, /outline-offset:\s*0\s*!important\s*;/);
+  assert.match(focus, /box-shadow:\s*none\s*!important\s*;/);
+  assert.match(focus, /-webkit-tap-highlight-color:\s*transparent\s*;/);
   assert.doesNotMatch(focus, /(?:^|\s)(?:fill|stroke|stroke-width):/m);
   assert.match(occupiedPreview, /stroke:\s*color-mix\(in srgb, var\(--diagram-track-color\) 74%, var\(--text\)\)\s*;/);
+});
+
+test("production CSS retains the hardened diagram focus guard", async () => {
+  const assetDirectory = new URL("../dist/client/assets/", import.meta.url);
+  const files = (await readdir(assetDirectory)).filter((file) => file.endsWith(".css"));
+  assert.ok(files.length > 0, "the production build emits a CSS asset");
+  const css = (await Promise.all(files.map((file) => readFile(new URL(file, assetDirectory), "utf8")))).join("\n");
+  const focus = css.match(/\.diagram-canvas \[data-diagram-action\],[^{]*\{([^}]*)\}/)?.[1] ?? "";
+
+  assert.match(focus, /outline:\s*0\s*!important/);
+  assert.match(focus, /outline-offset:\s*0\s*!important/);
+  assert.match(focus, /box-shadow:\s*none\s*!important/);
+  assert.match(focus, /-webkit-tap-highlight-color:\s*transparent/);
 });
 
 test("the plane control colors the field without drawing a selection box", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const selectedPlane = css.match(/\.spatial-canvas\.is-plane-selected\s*\{([^}]*)\}/)?.[1] ?? "";
   const planeHit = css.match(/\.diagram-plane-hit\s*\{([^}]*)\}/)?.[1] ?? "";
-  const focus = css.match(/\.diagram-hit:focus,[^{]*\{([^}]*)\}/)?.[1] ?? "";
+  const focus = css.match(/\.diagram-canvas \[data-diagram-action\],[^{]*\{([^}]*)\}/)?.[1] ?? "";
 
   assert.match(selectedPlane, /background-color:\s*color-mix\(in srgb, var\(--lower\) 13%, transparent\)\s*;/);
   assert.match(planeHit, /fill:\s*transparent\s*;/);
   assert.match(planeHit, /stroke:\s*none\s*;/);
   assert.match(planeHit, /cursor:\s*pointer\s*;/);
-  assert.match(focus, /outline:\s*none\s*;/);
+  assert.match(focus, /outline:\s*0\s*!important\s*;/);
   assert.doesNotMatch(focus, /(?:^|\s)(?:fill|stroke|stroke-width):/m);
 });
 
@@ -89,10 +102,21 @@ test("every diagram target clears its hover preview on pointer leave", async () 
     const targetStart = component.indexOf(marker);
     assert.notEqual(targetStart, -1, `${marker} target exists`);
     const targetEnd = component.indexOf("/>", targetStart);
+    const target = component.slice(targetStart, targetEnd);
+    const enterStart = component.indexOf("onPointerEnter", targetStart);
     const leaveStart = component.indexOf("onPointerLeave", targetStart);
+    assert.ok(enterStart > targetStart && enterStart < targetEnd, `${marker} has pointer-enter preview`);
     assert.ok(leaveStart > targetStart && leaveStart < targetEnd, `${marker} has pointer-leave cleanup`);
-    const focusStart = component.indexOf("onFocus", leaveStart);
-    const cleanup = component.slice(leaveStart, focusStart);
+    assert.match(target, /focusable="false"/, `${marker} is structurally unfocusable`);
+    assert.match(target, /aria-hidden="true"/, `${marker} is excluded from keyboard semantics`);
+    assert.doesNotMatch(target, /\btabIndex=/, `${marker} has no tab stop`);
+    assert.doesNotMatch(target, /\brole=/, `${marker} has no focusable button role`);
+    assert.doesNotMatch(target, /\baria-pressed=/, `${marker} has no pressed button state`);
+    assert.doesNotMatch(target, /\bonFocus=/, `${marker} has no SVG focus handler`);
+    assert.doesNotMatch(target, /\bonBlur=/, `${marker} has no SVG blur handler`);
+    assert.doesNotMatch(target, /\bonKeyDown=/, `${marker} has no keyboard activation handler`);
+    assert.doesNotMatch(target, /\bonClick=/, `${marker} has no click-created SVG focus path`);
+    const cleanup = component.slice(leaveStart, targetEnd);
     assert.match(cleanup, /setHoverSegment\(null\)/, `${marker} clears interval hover`);
     assert.match(cleanup, /setHoverDiagramSide\(null\)/, `${marker} clears side hover`);
     assert.match(cleanup, /setHoverOutermost\(null\)/, `${marker} clears outer hover`);
