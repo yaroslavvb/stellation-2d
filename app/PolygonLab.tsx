@@ -1038,7 +1038,7 @@ export default function PolygonLab() {
                       ))}
                     </g>
                   ) : null}
-                  <g className="facetting-edges" filter="url(#selected-glow)">
+                  <g className="facetting-edges">
                     {facetting.edges.map((edge) => (
                       <line
                         key={edge.id}

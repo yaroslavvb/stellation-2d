@@ -22,6 +22,26 @@ test("facetting link radios suppress browser outline artifacts", async () => {
   assert.match(focusRow, /stroke:\s*var\(--cyan\)\s*;/);
 });
 
+test("facetting circuits use visible screen-space strokes", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const component = await readFile(new URL("../app/PolygonLab.tsx", import.meta.url), "utf8");
+  const sourcePolygon = css.match(/\.source-polygon\s*\{([^}]*)\}/)?.[1] ?? "";
+  const edge = css.match(/\.facetting-edges \.facetting-edge\s*\{([^}]*)\}/)?.[1] ?? "";
+  const preview = css.match(/\.facetting-preview \.facetting-edge\s*\{([^}]*)\}/)?.[1] ?? "";
+  const vertex = css.match(/\.source-vertex\s*\{([^}]*)\}/)?.[1] ?? "";
+
+  assert.match(edge, /stroke:\s*color-mix\(in srgb, var\(--facet-color\) 64%, var\(--text\)\)\s*;/);
+  assert.match(edge, /stroke-width:\s*3px\s*;/);
+  assert.match(edge, /opacity:\s*1\s*;/);
+  assert.match(edge, /filter:\s*none\s*;/);
+  assert.match(preview, /stroke-width:\s*2px\s*;/);
+  assert.match(preview, /opacity:\s*0\.62\s*;/);
+  assert.match(sourcePolygon, /stroke-width:\s*1\.25px\s*;/);
+  assert.match(vertex, /stroke-width:\s*1\.5px\s*;/);
+  assert.match(component, /<g className="facetting-edges">/);
+  assert.doesNotMatch(component, /className="facetting-edges"[^>]*filter=/);
+});
+
 test("uses the canonical Stellation palette foundations and layer sequence", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   for (const token of [
