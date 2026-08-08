@@ -21,6 +21,7 @@ import {
   type LabMode,
 } from "./share-state";
 import {
+  DIAGRAM_CANVAS_INSETS,
   DIAGRAM_HIT_BANDS,
   DIAGRAM_LABEL_Y,
   diagramSpanAtZoom,
@@ -814,7 +815,8 @@ export default function PolygonLab() {
     } catch {
       // The pointer may already have been released by the browser.
     }
-    if (drag.dragged || drag.segmentId === null || drag.action === null) return;
+    if (drag.dragged || drag.action === null) return;
+    if (drag.action !== "plane" && drag.segmentId === null) return;
     actOnDiagram(drag.segmentId, drag.action);
   };
 
@@ -827,7 +829,15 @@ export default function PolygonLab() {
     }));
   };
 
-  const actOnDiagram = (segmentId: number, action: DiagramAction) => {
+  const actOnDiagram = (segmentId: number | null, action: DiagramAction) => {
+    if (action === "plane") {
+      commit(
+        (current) => applySelectionAction(current, [PLANE_SELECTION_ID], "toggle"),
+        planeSelected ? "Entire plane cleared" : "Entire plane selected",
+      );
+      return;
+    }
+    if (segmentId === null) return;
     if (action === "outer") {
       const orbit = outermostOrbitMap.byCell.get(segmentId);
       if (!orbit) return;
@@ -841,14 +851,6 @@ export default function PolygonLab() {
     }
     const segment = arrangement.diagram[segmentId];
     if (!segment) return;
-    if (action === "plane") {
-      if (segment.aboveCellId !== arrangement.coreCellId) return;
-      commit(
-        (current) => applySelectionAction(current, [PLANE_SELECTION_ID], "toggle"),
-        planeSelected ? "Entire plane cleared" : "Entire plane selected",
-      );
-      return;
-    }
     const cellId = diagramCellForSide(segment, action);
     if (cellId === null) {
       setStatus(`No bounded cell ${action} this interval`);
@@ -935,13 +937,21 @@ export default function PolygonLab() {
   const diagramCenter = diagramView.center || (arrangement.diagramExtent[0] + arrangement.diagramExtent[1]) / 2;
   const diagramStart = diagramCenter - diagramSpan / 2;
   const diagramViewportWidth = Math.max(1, viewDimensions?.diagramWidth ?? 1000);
-  const diagramViewportHeight = Math.max(1, (viewDimensions?.diagramHeight ?? 220) - 62);
+  const diagramCanvasHeight = Math.max(1, viewDimensions?.diagramHeight ?? 220);
+  const diagramViewportHeight = Math.max(
+    1,
+    diagramCanvasHeight - DIAGRAM_CANVAS_INSETS.top - DIAGRAM_CANVAS_INSETS.bottom,
+  );
+  const stellationDiagramViewportHeight = Math.max(
+    1,
+    diagramCanvasHeight - DIAGRAM_CANVAS_INSETS.top,
+  );
   const diagramX = (position: number) =>
     diagramViewportPosition(position, diagramStart, diagramSpan, diagramViewportWidth);
   const diagramY = (position: number) => (position / 100) * diagramViewportHeight;
   const diagramUpperTrackY = diagramY(50);
   const diagramLowerTrackY = diagramY(58);
-  const diagramViewBox = `0 0 ${diagramViewportWidth} ${diagramViewportHeight}`;
+  const diagramViewBox = `0 0 ${diagramViewportWidth} ${stellationDiagramViewportHeight}`;
   const outermostColor = layerColor(Math.ceil(sides / 2));
   const outermostRegions = outermostCellRegions(arrangement, {
     minX: view.x - viewSpan / 2,
@@ -953,6 +963,9 @@ export default function PolygonLab() {
     Math.min(diagramViewportWidth, Math.max(0, position));
   const leftOuterRayEnd = clampDiagramX(diagramX(arrangement.diagramExtent[0]));
   const rightOuterRayStart = clampDiagramX(diagramX(arrangement.diagramExtent[1]));
+  const referenceDiagramSegment = arrangement.diagram.find(
+    (segment) => segment.aboveCellId === arrangement.coreCellId,
+  );
   const outermostRunLength = Math.ceil(sides / 2);
   const outerDiagramRays = [
     {
@@ -1270,7 +1283,7 @@ export default function PolygonLab() {
 
             {mode === "stellation" ? (
               <svg
-              className="diagram-canvas"
+              className="diagram-canvas stellation-diagram-canvas"
               viewBox={diagramViewBox}
               preserveAspectRatio="none"
               role="group"
@@ -1492,36 +1505,36 @@ export default function PolygonLab() {
                       }}
                       onContextMenu={(event) => event.preventDefault()}
                     />
-                    {isReferenceEdge ? (
-                      <rect
-                        className="diagram-plane-hit"
-                        x={x0}
-                        y={diagramY(DIAGRAM_HIT_BANDS.plane.start)}
-                        width={width}
-                        height={diagramY(DIAGRAM_HIT_BANDS.plane.end - DIAGRAM_HIT_BANDS.plane.start)}
-                        data-segment-id={segment.id}
-                        data-diagram-action="plane"
-                        data-diagram-plane="true"
-                        focusable="false"
-                        aria-hidden="true"
-                        onPointerEnter={() => {
-                          setHoverSegment(segment.id);
-                          setHoverDiagramSide(null);
-                          setHoverOutermost(null);
-                          setHoverPlane(true);
-                        }}
-                        onPointerLeave={() => {
-                          setHoverSegment(null);
-                          setHoverDiagramSide(null);
-                          setHoverOutermost(null);
-                          setHoverPlane(false);
-                        }}
-                        onContextMenu={(event) => event.preventDefault()}
-                      />
-                    ) : null}
                   </g>
                 );
               })}
+              {referenceDiagramSegment && rightOuterRayStart - leftOuterRayEnd > 0.5 ? (
+                <rect
+                  className="diagram-plane-hit"
+                  x={leftOuterRayEnd}
+                  y={diagramY(DIAGRAM_HIT_BANDS.plane.start)}
+                  width={rightOuterRayStart - leftOuterRayEnd}
+                  height={stellationDiagramViewportHeight - diagramY(DIAGRAM_HIT_BANDS.plane.start)}
+                  data-segment-id={referenceDiagramSegment.id}
+                  data-diagram-action="plane"
+                  data-diagram-plane="true"
+                  focusable="false"
+                  aria-hidden="true"
+                  onPointerEnter={() => {
+                    setHoverSegment(referenceDiagramSegment.id);
+                    setHoverDiagramSide(null);
+                    setHoverOutermost(null);
+                    setHoverPlane(true);
+                  }}
+                  onPointerLeave={() => {
+                    setHoverSegment(null);
+                    setHoverDiagramSide(null);
+                    setHoverOutermost(null);
+                    setHoverPlane(false);
+                  }}
+                  onContextMenu={(event) => event.preventDefault()}
+                />
+              ) : null}
               </svg>
             ) : (
               <svg

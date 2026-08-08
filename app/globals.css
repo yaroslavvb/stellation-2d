@@ -568,6 +568,10 @@ kbd {
   padding-bottom: 25px;
 }
 
+.stellation-diagram-canvas {
+  padding-bottom: 0;
+}
+
 .diagram-legend {
   display: flex;
   gap: 12px;

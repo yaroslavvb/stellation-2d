@@ -8,6 +8,11 @@ export type DiagramNeighbors = {
 
 export const DIAGRAM_DRAG_THRESHOLD_PX = 5;
 
+export const DIAGRAM_CANVAS_INSETS = {
+  top: 37,
+  bottom: 25,
+} as const;
+
 export const DIAGRAM_LABEL_Y = {
   above: 29,
   below: 72,

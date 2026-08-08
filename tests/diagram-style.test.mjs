@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
+import { DIAGRAM_CANVAS_INSETS } from "../app/diagram-interaction.ts";
 
 test("diagram gives upper and lower rails and occupancy tracks identical styling", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -89,6 +90,58 @@ test("the plane control colors the field without drawing a selection box", async
   assert.doesNotMatch(focus, /(?:^|\s)(?:fill|stroke|stroke-width):/m);
 });
 
+test("stellation exposes the bottom plane target while facetting keeps its canvas padding", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const component = await readFile(new URL("../app/PolygonLab.tsx", import.meta.url), "utf8");
+  const sharedCanvas = css.match(/\.diagram-panel\s*\{[^}]*\}\s*\.diagram-canvas\s*\{([^}]*)\}/)?.[1] ?? "";
+  const stellationCanvas = css.match(/^\.stellation-diagram-canvas\s*\{([^}]*)\}/m)?.[1] ?? "";
+
+  assert.match(sharedCanvas, new RegExp(`padding-top:\\s*${DIAGRAM_CANVAS_INSETS.top}px\\s*;`));
+  assert.match(sharedCanvas, new RegExp(`padding-bottom:\\s*${DIAGRAM_CANVAS_INSETS.bottom}px\\s*;`));
+  assert.equal(
+    stellationCanvas.trim().replace(/\s+/g, " "),
+    "padding-bottom: 0;",
+    "stellation overrides only the bottom inset",
+  );
+  assert.match(component, /className="diagram-canvas stellation-diagram-canvas"/);
+  assert.match(component, /className="diagram-canvas facet-link-canvas"/);
+  assert.match(
+    component,
+    /const diagramViewportHeight = Math\.max\([\s\S]*?diagramCanvasHeight - DIAGRAM_CANVAS_INSETS\.top - DIAGRAM_CANVAS_INSETS\.bottom,[\s\S]*?\);/,
+  );
+  assert.match(
+    component,
+    /const stellationDiagramViewportHeight = Math\.max\([\s\S]*?diagramCanvasHeight - DIAGRAM_CANVAS_INSETS\.top,[\s\S]*?\);/,
+  );
+  assert.match(
+    component,
+    /const diagramViewBox = `0 0 \$\{diagramViewportWidth\} \$\{stellationDiagramViewportHeight\}`/,
+  );
+  assert.match(component, /const facetLinkViewportHeight = diagramViewportHeight/);
+});
+
+test("one frame-free plane target spans every bounded interval through the viewBox bottom", async () => {
+  const component = await readFile(new URL("../app/PolygonLab.tsx", import.meta.url), "utf8");
+  const marker = 'className="diagram-plane-hit"';
+  const targetStart = component.indexOf(marker);
+  const targetEnd = component.indexOf("/>", targetStart);
+  const target = component.slice(targetStart, targetEnd);
+
+  assert.notEqual(targetStart, -1, "the plane target exists");
+  assert.equal(component.split(marker).length - 1, 1, "there is one plane target, not one per interval");
+  assert.match(target, /x=\{leftOuterRayEnd\}/);
+  assert.match(target, /width=\{rightOuterRayStart - leftOuterRayEnd\}/);
+  assert.match(target, /y=\{diagramY\(DIAGRAM_HIT_BANDS\.plane\.start\)\}/);
+  assert.match(
+    target,
+    /height=\{stellationDiagramViewportHeight - diagramY\(DIAGRAM_HIT_BANDS\.plane\.start\)\}/,
+  );
+  assert.match(target, /data-diagram-action="plane"/);
+  assert.match(target, /data-diagram-plane="true"/);
+  assert.match(target, /focusable="false"/);
+  assert.match(target, /aria-hidden="true"/);
+});
+
 test("outermost cells use frame-free end rays and fill-only spatial wedges", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const component = await readFile(new URL("../app/PolygonLab.tsx", import.meta.url), "utf8");
@@ -158,7 +211,7 @@ test("facetting diagram text keeps natural proportions and a clear type hierarch
   const diagramLabel = css.match(/\.diagram-label\s*\{([^}]*)\}/)?.[1] ?? "";
 
   assert.match(component, /diagramHeight:\s*diagramBounds\.height/);
-  assert.match(component, /const diagramViewBox = `0 0 \$\{diagramViewportWidth\} \$\{diagramViewportHeight\}`/);
+  assert.match(component, /const facetLinkViewportHeight = diagramViewportHeight/);
   assert.match(component, /const diagramY = \(position: number\) => \(position \/ 100\) \* diagramViewportHeight/);
   assert.match(component, /viewBox=\{`0 0 \$\{facetLinkViewportWidth\} \$\{facetLinkViewportHeight\}`\}/);
   assert.match(component, /const rowSpan = facetLinkViewportHeight \/ Math\.max\(1, facetLinks\.length\)/);

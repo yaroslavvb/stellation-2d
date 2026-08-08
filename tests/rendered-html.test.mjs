@@ -20,6 +20,14 @@ async function render() {
   );
 }
 
+function numericAttribute(tag, name) {
+  const value = tag.match(new RegExp(`\\b${name}="([^"]+)"`))?.[1];
+  assert.notEqual(value, undefined, `${name} is present on ${tag}`);
+  const number = Number(value);
+  assert.equal(Number.isFinite(number), true, `${name} is numeric on ${tag}`);
+  return number;
+}
+
 test("server-renders Stellation by default with both construction modes available", async () => {
   const response = await render();
   assert.equal(response.status, 200);
@@ -71,7 +79,29 @@ test("server-renders Stellation by default with both construction modes availabl
     assert.doesNotMatch(target, /\baria-label=/);
   }
   assert.equal(html.match(/data-diagram-outer="true"/g)?.length, 2);
-  assert.match(html, /data-diagram-plane="true" focusable="false" aria-hidden="true"/);
+  const planeTargets = diagramTargets.filter((tag) => /\bdata-diagram-plane="true"/.test(tag));
+  assert.equal(planeTargets.length, 1, "one plane target covers the complete bounded line");
+  const planeTarget = planeTargets[0];
+  assert.match(planeTarget, /data-diagram-plane="true" focusable="false" aria-hidden="true"/);
+
+  const stellationSvg = html.match(/<svg\b(?=[^>]*class="diagram-canvas stellation-diagram-canvas")(?=[^>]*aria-label="One-dimensional arrangement)[^>]*>/)?.[0] ?? "";
+  assert.notEqual(stellationSvg, "", "the rendered stellation diagram exists");
+  const viewBox = stellationSvg.match(/\bviewBox="([^"]+)"/)?.[1].split(/\s+/).map(Number) ?? [];
+  assert.equal(viewBox.length, 4);
+  assert.equal(viewBox.every(Number.isFinite), true);
+
+  const boundedRail = html.match(/<line\b(?=[^>]*class="diagram-rail above")[^>]*>/)?.[0] ?? "";
+  assert.notEqual(boundedRail, "", "the bounded arrangement rail exists");
+  const planeX = numericAttribute(planeTarget, "x");
+  const planeY = numericAttribute(planeTarget, "y");
+  const planeWidth = numericAttribute(planeTarget, "width");
+  const planeHeight = numericAttribute(planeTarget, "height");
+  const railStart = numericAttribute(boundedRail, "x1");
+  const railEnd = numericAttribute(boundedRail, "x2");
+
+  assert.ok(Math.abs(planeX - railStart) < 1e-9, "plane target begins at the bounded rail start");
+  assert.ok(Math.abs(planeX + planeWidth - railEnd) < 1e-9, "plane target reaches the bounded rail end");
+  assert.ok(Math.abs(planeY + planeHeight - (viewBox[1] + viewBox[3])) < 1e-9, "plane target reaches the true viewBox bottom");
   assert.match(html, /class="spatial-canvas" data-outermost-selected="false" data-plane-selected="false"/);
   assert.match(html, /class="outermost-region-layer" aria-hidden="true"/);
   assert.equal(html.match(/class="outermost-region"/g)?.length, 5);
