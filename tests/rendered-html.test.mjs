@@ -45,6 +45,13 @@ test("server-renders Stellation by default with both construction modes availabl
   assert.equal(html.match(/data-diagram-side="below"/g)?.length, 3);
   assert.match(html, /role="group" aria-label="One-dimensional arrangement/);
   assert.equal(html.match(/aria-pressed="(?:true|false)" aria-label="Interval/g)?.length, 4);
+  assert.match(html, /data-layer-number="1" aria-label="Toggle every cell in layer 1" aria-pressed="false"/);
+  assert.match(html, /data-layer-number="0" aria-label="Toggle every cell in layer 0" aria-pressed="true"/);
+  assert.match(html, /<kbd>layer #<\/kbd><span>toggle the whole layer<\/span>/);
+  assert.match(html, /aria-label="Cells per orbit color legend"/);
+  assert.match(html, /data-orbit-size="5"/);
+  assert.match(html, /role="group" aria-label="Cell orbits by layer"/);
+  assert.match(html, /aria-label="L0 · O1: toggle 1 congruent cell"/);
   assert.match(html, /Stellation correspondence/);
   assert.match(html, /<b>5<\/b> lines/);
   assert.match(html, /<b>6<\/b> bounded cells/);

@@ -25,7 +25,8 @@ import {
   isDiagramDrag,
   type DiagramSide,
 } from "./diagram-interaction";
-import { applySelectionAction } from "./selection";
+import { applySelectionAction, toggleActionForTargets } from "./selection";
+import { buildOrbitCardinalityPalette } from "./orbit-palette";
 import {
   DEFAULT_THEME_PREFERENCE,
   nextThemePreference,
@@ -50,6 +51,13 @@ import {
 type ModifierState = {
   shift: boolean;
   remove: boolean;
+};
+
+type SelectionModifierEvent = {
+  shiftKey?: boolean;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  altKey?: boolean;
 };
 
 type DragState = {
@@ -236,6 +244,7 @@ export default function PolygonLab() {
   const [facetPast, setFacetPast] = useState<number[]>([]);
   const [facetFuture, setFacetFuture] = useState<number[]>([]);
   const [hoverCell, setHoverCell] = useState<number | null>(null);
+  const [hoverLayer, setHoverLayer] = useState<number | null>(null);
   const [hoverSegment, setHoverSegment] = useState<number | null>(null);
   const [hoverDiagramSide, setHoverDiagramSide] = useState<DiagramSide | null>(null);
   const [hoverFacetStep, setHoverFacetStep] = useState<number | null>(null);
@@ -299,6 +308,10 @@ export default function PolygonLab() {
   );
 
   const coreOrbit = orbitMap.byCell.get(arrangement.coreCellId);
+  const orbitCardinalityPalette = useMemo(
+    () => buildOrbitCardinalityPalette(orbitMap.orbits.map((orbit) => orbit.cellIds.length)),
+    [orbitMap.orbits],
+  );
   const maxLayer = Math.max(...arrangement.cells.map((cell) => cell.layer));
   const selectedBoundaryEdges = useMemo(
     () => selectedBoundary(arrangement, selected),
@@ -315,6 +328,11 @@ export default function PolygonLab() {
 
   const highlightedCells = useMemo(() => {
     const result = new Set<number>();
+    if (hoverLayer !== null) {
+      for (const cell of arrangement.cells) {
+        if (cell.layer === hoverLayer) result.add(cell.id);
+      }
+    }
     if (hoverCell !== null) {
       const orbit = orbitMap.byCell.get(hoverCell);
       for (const cellId of orbit?.cellIds ?? [hoverCell]) result.add(cellId);
@@ -330,7 +348,7 @@ export default function PolygonLab() {
       }
     }
     return result;
-  }, [arrangement, hoverCell, hoverDiagramSide, hoverSegment, orbitMap]);
+  }, [arrangement, hoverCell, hoverDiagramSide, hoverLayer, hoverSegment, orbitMap]);
 
   const commit = useCallback(
     (nextOrUpdater: Set<number> | ((current: Set<number>) => Set<number>), message: string) => {
@@ -348,27 +366,47 @@ export default function PolygonLab() {
   );
 
   const orbitAction = useCallback(
-    (orbit: Orbit, action: "add" | "remove" | "toggle", withSupport = false) => {
-      let targets = new Set(orbit.cellIds);
-      if (withSupport) {
-        targets = buildInvariantSet(supportClosure(arrangement, targets), orbitMap);
-      }
-      const label = `${orbitName(orbit)}${withSupport ? " + lower cells" : ""}`;
+    (orbit: Orbit, action: "add" | "remove" | "toggle") => {
+      const targets = new Set(orbit.cellIds);
       commit((current) => {
         return applySelectionAction(current, targets, action);
-      }, `${shouldAddText(action, selected, targets)} ${label}`);
+      }, `${shouldAddText(action, selected, targets)} ${orbitName(orbit)}`);
     },
-    [arrangement, commit, orbitMap, selected],
+    [commit, selected],
+  );
+
+  const actOnCellsTableTarget = useCallback(
+    (targetCellIds: Iterable<number>, label: string, event: SelectionModifierEvent) => {
+      const targets = new Set(targetCellIds);
+      const withSupport = Boolean(
+        event.shiftKey || event.ctrlKey || event.metaKey || event.altKey,
+      );
+      const affected = withSupport
+        ? buildInvariantSet(supportClosure(arrangement, targets), orbitMap)
+        : targets;
+      commit((current) => {
+        const action = toggleActionForTargets(current, targets);
+        return applySelectionAction(current, affected, action);
+      }, `${label}${withSupport ? " + lower support" : ""} toggled`);
+    },
+    [arrangement, commit, orbitMap],
   );
 
   const actOnCellTable = useCallback(
-    (orbit: Orbit, event: { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }) => {
-      const remove = Boolean(event.ctrlKey || event.metaKey || event.altKey);
-      if (event.shiftKey) orbitAction(orbit, "add", true);
-      else if (remove) orbitAction(orbit, "remove", true);
-      else orbitAction(orbit, "toggle", false);
+    (orbit: Orbit, event: SelectionModifierEvent) => {
+      actOnCellsTableTarget(orbit.cellIds, orbitName(orbit), event);
     },
-    [orbitAction],
+    [actOnCellsTableTarget],
+  );
+
+  const actOnLayer = useCallback(
+    (layer: number, event: SelectionModifierEvent) => {
+      const layerCellIds = arrangement.cells
+        .filter((cell) => cell.layer === layer)
+        .map((cell) => cell.id);
+      actOnCellsTableTarget(layerCellIds, `Layer ${layer}`, event);
+    },
+    [actOnCellsTableTarget, arrangement.cells],
   );
 
   const commitFacet = useCallback(
@@ -504,6 +542,7 @@ export default function PolygonLab() {
     setFacetStep(1);
     setFacetPast([]);
     setFacetFuture([]);
+    setHoverLayer(null);
     setHoverSegment(null);
     setHoverDiagramSide(null);
     setHoverFacetStep(null);
@@ -513,6 +552,7 @@ export default function PolygonLab() {
     if (nextMode === mode) return;
     setMode(nextMode);
     setHoverCell(null);
+    setHoverLayer(null);
     setHoverSegment(null);
     setHoverDiagramSide(null);
     setHoverFacetStep(null);
@@ -576,8 +616,8 @@ export default function PolygonLab() {
     if (!drag || drag.moved >= 4 || drag.cellId === null) return;
     const orbit = orbitMap.byCell.get(drag.cellId);
     if (!orbit) return;
-    if (event.shiftKey) orbitAction(orbit, "add", false);
-    else if (event.ctrlKey || event.metaKey || event.altKey) orbitAction(orbit, "remove", false);
+    if (event.shiftKey) orbitAction(orbit, "add");
+    else if (event.ctrlKey || event.metaKey || event.altKey) orbitAction(orbit, "remove");
   };
 
   const spatialWheel = (event: React.WheelEvent<SVGSVGElement>) => {
@@ -647,7 +687,7 @@ export default function PolygonLab() {
       return;
     }
     const orbit = orbitMap.byCell.get(cellId);
-    if (orbit) orbitAction(orbit, "toggle", false);
+    if (orbit) orbitAction(orbit, "toggle");
   };
 
   const undo = () => {
@@ -1303,26 +1343,50 @@ export default function PolygonLab() {
               <button type="button" onClick={redo} disabled={!future.length} aria-label="Redo">↷</button>
             </div>
 
-            <div className="orbit-table" tabIndex={0} aria-label="Cell orbits by layer">
+            <div className="orbit-table" role="group" aria-label="Cell orbits by layer">
               {[...Array(maxLayer + 1)].map((_, reverseIndex) => {
                 const layer = maxLayer - reverseIndex;
                 const orbits = orbitMap.orbits.filter((orbit) => orbit.layer === layer);
+                const layerCellIds = arrangement.cells
+                  .filter((cell) => cell.layer === layer)
+                  .map((cell) => cell.id);
+                const layerActive = layerCellIds.every((cellId) => selected.has(cellId));
+                const layerPartial = !layerActive && layerCellIds.some((cellId) => selected.has(cellId));
                 return (
                   <div className="orbit-row" key={layer}>
-                    <div className="layer-label">
-                      <b>L{layer}</b>
-                      <span>{layer === 0 ? "core" : `shell ${layer}`}</span>
-                    </div>
+                    <button
+                      type="button"
+                      className={`layer-button ${layerActive ? "is-active" : ""} ${layerPartial ? "is-partial" : ""}`}
+                      data-layer-number={layer}
+                      aria-label={`Toggle every cell in layer ${layer}`}
+                      aria-pressed={layerActive ? true : layerPartial ? "mixed" : false}
+                      onClick={(event) => actOnLayer(layer, event)}
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        if (event.ctrlKey) actOnLayer(layer, event);
+                      }}
+                      onPointerEnter={() => setHoverLayer(layer)}
+                      onPointerLeave={() => setHoverLayer(null)}
+                      onFocus={() => setHoverLayer(layer)}
+                      onBlur={() => setHoverLayer(null)}
+                      title={`Layer ${layer} · click the number to toggle the whole layer`}
+                    >
+                      <span aria-hidden="true">{layer}</span>
+                    </button>
                     <div className="orbit-items">
                       {orbits.map((orbit) => {
                         const active = orbit.cellIds.every((cellId) => selected.has(cellId));
                         const highlighted = orbit.cellIds.some((cellId) => highlightedCells.has(cellId));
+                        const cardinalityColor = orbitCardinalityPalette.get(orbit.cellIds.length) ?? "var(--dim)";
                         return (
                           <button
                             type="button"
                             key={orbit.id}
                             className={`orbit-button ${active ? "is-active" : ""} ${highlighted ? "is-highlighted" : ""}`}
-                            style={{ "--orbit-color": layerColor(layer) } as React.CSSProperties}
+                            style={{ "--orbit-color": cardinalityColor } as React.CSSProperties}
+                            data-orbit-size={orbit.cellIds.length}
+                            aria-pressed={active}
+                            aria-label={`${orbitName(orbit)}: toggle ${orbit.cellIds.length} congruent ${orbit.cellIds.length === 1 ? "cell" : "cells"}`}
                             onClick={(event) => actOnCellTable(orbit, event)}
                             onContextMenu={(event) => {
                               event.preventDefault();
@@ -1330,10 +1394,11 @@ export default function PolygonLab() {
                             }}
                             onPointerEnter={() => setHoverCell(orbit.cellIds[0])}
                             onPointerLeave={() => setHoverCell(null)}
+                            onFocus={() => setHoverCell(orbit.cellIds[0])}
+                            onBlur={() => setHoverCell(null)}
                             title={`${orbitName(orbit)} · ${orbit.cellIds.length} congruent ${orbit.cellIds.length === 1 ? "cell" : "cells"}`}
                           >
                             <span>O{orbit.id + 1}</span>
-                            <small>×{orbit.cellIds.length}</small>
                           </button>
                         );
                       })}
@@ -1343,15 +1408,16 @@ export default function PolygonLab() {
               })}
             </div>
 
-            <div className="layer-legend">
-              {[...Array(maxLayer + 1)].map((_, layer) => (
-                <span key={layer}><i style={{ background: layerColor(layer) }} /> L{layer}</span>
+            <div className="orbit-size-legend" aria-label="Cells per orbit color legend">
+              <b>cells per orbit</b>
+              {[...orbitCardinalityPalette].map(([count, color]) => (
+                <span key={count}><i style={{ background: color }} /> {count}</span>
               ))}
             </div>
             <ul className="key-guide">
+              <li><kbd>layer #</kbd><span>toggle the whole layer</span></li>
               <li><kbd>click</kbd><span>toggle one symmetry orbit</span></li>
-              <li><kbd>shift</kbd><span>add orbit + everything below it</span></li>
-              <li><kbd>ctrl / ⌥</kbd><span>remove that same lower closure</span></li>
+              <li><kbd>shift / ctrl</kbd><span>toggle target + lower support</span></li>
             </ul>
             </section>
           ) : (

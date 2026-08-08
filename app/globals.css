@@ -34,6 +34,10 @@
   --grid-stroke: rgba(255, 255, 255, 0.028);
   --cell-label-ink: #11151c;
   --cell-label-outline: rgba(255, 255, 255, 0.78);
+  --cell-box-fill: rgba(255, 255, 255, 0.035);
+  --cell-box-line: rgba(200, 212, 235, 0.20);
+  --cell-selection-ink: #14100a;
+  --cell-row-hover: rgba(255, 255, 255, 0.05);
   --radius: 8px;
   --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -70,6 +74,10 @@
   --layer-11: #b38c73;
   --construction-line: rgba(25, 25, 35, 0.72);
   --grid-stroke: rgba(20, 24, 31, 0.055);
+  --cell-box-fill: rgba(20, 30, 60, 0.028);
+  --cell-box-line: rgba(40, 55, 85, 0.20);
+  --cell-selection-ink: #fffaf0;
+  --cell-row-hover: rgba(20, 30, 60, 0.045);
 }
 
 * {
@@ -779,12 +787,19 @@ kbd {
 .cell-toolbar {
   display: grid;
   grid-template-columns: 1fr 1fr 0.72fr 31px 31px;
-  gap: 4px;
+  gap: 5px;
   margin-bottom: 9px;
 }
 
 .stellation-toolbar {
   grid-template-columns: 1fr 1fr 0.72fr 0.72fr 31px 31px;
+}
+
+.stellation-toolbar button {
+  height: 31px;
+  border-radius: 9px;
+  color: var(--text);
+  font-size: 11px;
 }
 
 .cell-toolbar button {
@@ -810,70 +825,95 @@ kbd {
 }
 
 .orbit-table {
-  max-height: 270px;
+  max-height: min(460px, 55vh);
   overflow: auto;
+  padding: 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--panel-soft);
+  background: var(--panel);
   scrollbar-color: var(--line-strong) var(--panel-raised);
   scrollbar-width: auto;
 }
 
 .orbit-row {
   display: grid;
-  grid-template-columns: 58px minmax(max-content, 1fr);
+  grid-template-columns: 36px minmax(max-content, 1fr);
+  align-items: center;
   min-width: max-content;
-  border-bottom: 1px solid var(--line);
+  min-height: 28px;
 }
 
-.orbit-row:last-child {
-  border-bottom: 0;
+.orbit-row + .orbit-row {
+  margin-top: 5px;
 }
 
-.layer-label {
+.layer-button {
   position: sticky;
   left: 0;
   z-index: 2;
+  width: 30px;
+  height: 28px;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-height: 42px;
-  padding: 6px 8px;
-  border-right: 1px solid var(--line);
-  background: var(--panel-raised);
-}
-
-.layer-label b {
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 6px 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--panel);
   color: var(--text);
-  font: 600 11px var(--mono);
+  cursor: pointer;
+  font: 550 14px var(--sans);
 }
 
-.layer-label span {
-  color: var(--dim);
-  font-size: 8.5px;
+.layer-button::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 2px;
+  width: 3px;
+  border-radius: 99px;
+  background: var(--line-strong);
+}
+
+.layer-button:hover,
+.layer-button:focus-visible {
+  background: var(--cell-row-hover);
+}
+
+.layer-button.is-partial::before {
+  background: color-mix(in srgb, var(--gold) 45%, var(--line-strong));
+}
+
+.layer-button.is-active {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.layer-button.is-active::before {
+  background: var(--gold);
 }
 
 .orbit-items {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 3px;
   min-width: max-content;
-  padding: 6px;
+  padding: 0;
 }
 
 .orbit-button {
   position: relative;
-  min-width: 43px;
-  height: 30px;
+  min-width: 32px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 3px 5px 5px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: var(--panel-raised);
-  color: var(--muted);
+  padding: 2px 5px 7px;
+  border: 1px solid var(--cell-box-line);
+  border-radius: 7px;
+  background: var(--cell-box-fill);
+  color: var(--text);
   cursor: pointer;
   overflow: hidden;
 }
@@ -881,28 +921,23 @@ kbd {
 .orbit-button::after {
   content: "";
   position: absolute;
-  left: 5px;
-  right: 5px;
-  bottom: 2px;
-  height: 2px;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  height: 3px;
   border-radius: 99px;
   background: var(--orbit-color);
   opacity: 0.55;
 }
 
 .orbit-button span {
-  font: 600 10px var(--mono);
-}
-
-.orbit-button small {
-  color: var(--dim);
-  font: 8px var(--mono);
+  font: 640 13px var(--sans);
 }
 
 .orbit-button.is-active {
-  border-color: color-mix(in srgb, var(--orbit-color) 55%, var(--line-strong));
-  background: color-mix(in srgb, var(--orbit-color) 20%, var(--panel-raised));
-  color: var(--text);
+  border-color: var(--gold);
+  background: var(--gold);
+  color: var(--cell-selection-ink);
 }
 
 .orbit-button.is-active::after {
@@ -965,22 +1000,30 @@ kbd {
   font-size: 9.5px;
 }
 
-.layer-legend {
+.orbit-size-legend {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 9px;
   color: var(--dim);
-  font: 8.5px var(--mono);
+  font: 9px var(--mono);
+  letter-spacing: 0.02em;
 }
 
-.layer-legend span {
+.orbit-size-legend b {
+  font: 600 8.5px var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.orbit-size-legend span {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.layer-legend i {
+.orbit-size-legend i {
   width: 12px;
   height: 3px;
   border-radius: 99px;
