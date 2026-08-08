@@ -20,6 +20,7 @@ import {
   type LabMode,
 } from "./share-state";
 import {
+  diagramSpanAtZoom,
   diagramSpanForMatchingSpatialScale,
   diagramViewportPosition,
   diagramCellForSide,
@@ -278,6 +279,10 @@ export default function PolygonLab() {
     [mode],
   );
   const [diagramView, setDiagramView] = useState({ center: 0, zoom: 1 });
+  const resetSpatialAndDiagramView = useCallback(() => {
+    setView({ x: 0, y: 0, zoom: 1 });
+    if (mode === "stellation") setDiagramView({ center: 0, zoom: 1 });
+  }, [mode, setView]);
   const [viewDimensions, setViewDimensions] = useState<ViewDimensions | null>(null);
   const spatialPanelRef = useRef<HTMLDivElement>(null);
   const diagramPanelRef = useRef<HTMLDivElement>(null);
@@ -813,12 +818,15 @@ export default function PolygonLab() {
         viewDimensions.diagramWidth,
         diagramView.zoom,
       )
-    : (baseDiagramSpan * 1.14) / diagramView.zoom;
+    : diagramSpanAtZoom(baseDiagramSpan * 1.14, view.zoom * diagramView.zoom);
   const diagramCenter = diagramView.center || (arrangement.diagramExtent[0] + arrangement.diagramExtent[1]) / 2;
   const diagramStart = diagramCenter - diagramSpan / 2;
   const diagramX = (position: number) => diagramViewportPosition(position, diagramStart, diagramSpan);
   const diagramViewBox = "0 0 1000 100";
-  const facetDiagramSpan = Math.max(1e-6, facetDiagram.extent[1] - facetDiagram.extent[0]) * 1.28;
+  const facetDiagramSpan = diagramSpanAtZoom(
+    Math.max(1e-6, facetDiagram.extent[1] - facetDiagram.extent[0]) * 1.28,
+    view.zoom,
+  );
   const facetDiagramCenter = (facetDiagram.extent[0] + facetDiagram.extent[1]) / 2;
   const facetDiagramViewBox = `${facetDiagramCenter - facetDiagramSpan / 2} 0 ${facetDiagramSpan} 100`;
   const activeFacetIndex = facetOptions.findIndex((option) => option.step === activeFacetStep);
@@ -884,7 +892,7 @@ export default function PolygonLab() {
                 <h1>{mode === "stellation" ? "Supporting lines, stellation cells" : "Original vertices, new edge circuit"}</h1>
               </div>
               <div className="view-actions">
-                <button type="button" onClick={() => setView({ x: 0, y: 0, zoom: 1 })}>fit</button>
+                <button type="button" onClick={resetSpatialAndDiagramView}>fit</button>
                 <span>{Math.round(view.zoom * 100)}%</span>
               </div>
             </div>
@@ -904,7 +912,7 @@ export default function PolygonLab() {
               onPointerCancel={() => { viewDrag.current = null; }}
               onContextMenu={(event) => event.preventDefault()}
               onWheel={spatialWheel}
-              onDoubleClick={() => setView({ x: 0, y: 0, zoom: 1 })}
+              onDoubleClick={resetSpatialAndDiagramView}
               onPointerLeave={() => { if (!viewDrag.current) setHoverCell(null); }}
             >
               <defs>

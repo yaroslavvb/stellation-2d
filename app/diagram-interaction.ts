@@ -28,6 +28,13 @@ export function diagramViewportPosition(
   return ((position - start) / span) * viewportWidth;
 }
 
+export function diagramSpanAtZoom(baseSpan: number, zoom: number) {
+  if (!(baseSpan > 0) || !(zoom > 0)) {
+    throw new RangeError("Diagram span and zoom must be positive.");
+  }
+  return baseSpan / zoom;
+}
+
 export function diagramSpanForMatchingSpatialScale(
   spatialSpan: number,
   spatialWidth: number,
