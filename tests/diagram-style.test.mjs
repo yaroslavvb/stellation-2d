@@ -13,6 +13,20 @@ test("active diagram intervals use the rail's exact stroke width without a halo"
   assert.doesNotMatch(boundary, /stroke-width|drop-shadow/);
 });
 
+test("diagram focus uses a subtle side-aware outline", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const hit = css.match(/\.diagram-hit\s*\{([^}]*)\}/)?.[1] ?? "";
+  const below = css.match(/\.diagram-hit\.below\s*\{([^}]*)\}/)?.[1] ?? "";
+  const focus = css.match(/\.diagram-hit:focus-visible\s*\{([^}]*)\}/)?.[1] ?? "";
+
+  assert.match(hit, /--diagram-focus-color:\s*var\(--upper\)\s*;/);
+  assert.match(below, /--diagram-focus-color:\s*var\(--lower\)\s*;/);
+  assert.match(focus, /fill:\s*color-mix\(in srgb, var\(--diagram-focus-color\) 4%, transparent\)\s*;/);
+  assert.match(focus, /stroke:\s*color-mix\(in srgb, var\(--diagram-focus-color\) 48%, var\(--line-strong\)\)\s*;/);
+  assert.match(focus, /stroke-width:\s*1px\s*;/);
+  assert.doesNotMatch(focus, /stroke:\s*var\(--cyan\)/);
+});
+
 test("facetting link radios suppress browser outline artifacts", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const focusedPair = css.match(/\.facet-link-pair:focus-visible\s*\{([^}]*)\}/)?.[1] ?? "";
