@@ -2,15 +2,25 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("active diagram intervals use the rail's exact stroke width without a halo", async () => {
+test("diagram uses independent solid upper and lower occupancy tracks", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
-  const rail = css.match(/\.diagram-rail\s*\{([^}]*)\}/)?.[1] ?? "";
-  const interval = css.match(/\.diagram-interval\s*\{([^}]*)\}/)?.[1] ?? "";
-  const boundary = css.match(/\.diagram-interval\.is-boundary\s*\{([^}]*)\}/)?.[1] ?? "";
+  const component = await readFile(new URL("../app/PolygonLab.tsx", import.meta.url), "utf8");
+  const upperRail = css.match(/\.diagram-rail\.above\s*\{([^}]*)\}/)?.[1] ?? "";
+  const lowerRail = css.match(/\.diagram-rail\.below\s*\{([^}]*)\}/)?.[1] ?? "";
+  const occupancy = css.match(/\.diagram-occupancy\s*\{([^}]*)\}/)?.[1] ?? "";
+  const lower = css.match(/\.diagram-occupancy\.below\s*\{([^}]*)\}/)?.[1] ?? "";
+  const occupied = css.match(/\.diagram-occupancy\.is-occupied\s*\{([^}]*)\}/)?.[1] ?? "";
 
-  assert.match(rail, /stroke-width:\s*4\s*;/);
-  assert.match(interval, /stroke-width:\s*4\s*;/);
-  assert.doesNotMatch(boundary, /stroke-width|drop-shadow/);
+  assert.match(upperRail, /stroke-width:\s*4px\s*;/);
+  assert.match(lowerRail, /stroke-width:\s*2px\s*;/);
+  assert.match(occupancy, /stroke-width:\s*4px\s*;/);
+  assert.match(occupancy, /stroke-dasharray:\s*4px 5px\s*;/);
+  assert.match(lower, /stroke-width:\s*2px\s*;/);
+  assert.match(occupied, /stroke-dasharray:\s*none\s*;/);
+  assert.match(occupied, /opacity:\s*1\s*;/);
+  assert.match(component, /data-occupied=\{upperSelected\}/);
+  assert.match(component, /data-occupied=\{lowerSelected\}/);
+  assert.doesNotMatch(component, /const boundaryCell = upperSelected !== lowerSelected/);
 });
 
 test("diagram focus uses a subtle side-aware outline", async () => {

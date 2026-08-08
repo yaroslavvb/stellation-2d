@@ -555,6 +555,9 @@ kbd {
   border-radius: 99px;
 }
 
+.diagram-legend .upper-key { height: 4px; }
+.diagram-legend .lower-key { height: 2px; }
+
 .upper-key { background: var(--upper); }
 .lower-key { background: var(--lower); }
 .facet-selected-key { background: var(--gold); }
@@ -562,52 +565,63 @@ kbd {
 
 .diagram-rail {
   stroke: var(--text);
-  stroke-width: 4;
   stroke-linecap: butt;
-  opacity: 0.3;
+  pointer-events: none;
   vector-effect: non-scaling-stroke;
+}
+
+.diagram-rail.above {
+  stroke-width: 4px;
+  opacity: 0.24;
+}
+
+.diagram-rail.below {
+  stroke-width: 2px;
+  opacity: 0.18;
 }
 
 .diagram-tick {
   stroke: var(--text);
-  stroke-width: 1;
+  stroke-width: 1px;
   opacity: 0.72;
+  pointer-events: none;
   vector-effect: non-scaling-stroke;
 }
 
-.diagram-interval {
-  opacity: 0.16;
-  stroke: var(--text);
-  stroke-width: 4;
+.diagram-occupancy {
+  --diagram-track-color: var(--upper);
+  stroke: var(--diagram-track-color);
+  stroke-width: 4px;
   stroke-linecap: butt;
+  stroke-dasharray: 4px 5px;
+  opacity: 0.3;
+  pointer-events: none;
   vector-effect: non-scaling-stroke;
   transition: opacity 100ms ease, stroke 100ms ease;
 }
 
-.diagram-interval.is-boundary {
-  opacity: 0.94;
-  filter: none;
+.diagram-occupancy.below {
+  --diagram-track-color: var(--lower);
+  stroke-width: 2px;
+  stroke-dasharray: 3px 4px;
 }
 
-.diagram-interval.is-preview {
+.diagram-occupancy.is-occupied {
+  stroke-dasharray: none;
   opacity: 1;
 }
 
-.diagram-interval.is-internal {
-  stroke: color-mix(in srgb, var(--text) 9%, transparent);
-  stroke-width: 4;
-  stroke-dasharray: 4 5;
-  filter: none;
+.diagram-occupancy.is-preview:not(.is-occupied) {
+  stroke: color-mix(in srgb, var(--diagram-track-color) 78%, var(--text));
+  opacity: 0.72;
 }
 
-.diagram-interval.is-internal.is-preview {
-  opacity: 0.42;
-  stroke-dasharray: 4 4;
-}
-
-.diagram-segment.is-hovered .diagram-interval.is-boundary,
-.diagram-segment.is-hovered .diagram-interval.is-preview {
+.diagram-occupancy.is-occupied.is-preview {
   opacity: 1;
+}
+
+.diagram-occupancy.is-empty {
+  visibility: hidden;
 }
 
 .diagram-label {

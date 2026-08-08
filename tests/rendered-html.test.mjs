@@ -40,7 +40,11 @@ test("server-renders Stellation by default with both construction modes availabl
   assert.match(html, /<button type="button">clear<\/button>/);
   assert.match(html, /click above or below the line to toggle that cell/);
   assert.doesNotMatch(html, /diagram-band/);
-  assert.equal(html.match(/class="diagram-interval/g)?.length, 3);
+  assert.equal(html.match(/class="diagram-occupancy/g)?.length, 6);
+  assert.equal(html.match(/data-diagram-track="above"/g)?.length, 3);
+  assert.equal(html.match(/data-diagram-track="below"/g)?.length, 3);
+  assert.equal(html.match(/data-occupied="true"/g)?.length, 1);
+  assert.equal(html.match(/data-occupied="false"/g)?.length, 5);
   assert.equal(html.match(/data-diagram-side="above"/g)?.length, 3);
   assert.equal(html.match(/data-diagram-side="below"/g)?.length, 3);
   assert.match(html, /role="group" aria-label="One-dimensional arrangement/);

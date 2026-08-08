@@ -836,6 +836,8 @@ export default function PolygonLab() {
   const diagramX = (position: number) =>
     diagramViewportPosition(position, diagramStart, diagramSpan, diagramViewportWidth);
   const diagramY = (position: number) => (position / 100) * diagramViewportHeight;
+  const diagramUpperTrackY = diagramY(50);
+  const diagramLowerTrackY = diagramY(58);
   const diagramViewBox = `0 0 ${diagramViewportWidth} ${diagramViewportHeight}`;
   const maxFacetChordLength = Math.max(1e-6, ...facetLinks.map((link) => link.chordLength));
   const facetLinkViewportWidth = diagramViewportWidth;
@@ -1132,13 +1134,22 @@ export default function PolygonLab() {
                 setHoverDiagramSide(null);
               }}
             >
-              <line
-                className="diagram-rail"
-                x1={diagramX(arrangement.diagramExtent[0])}
-                x2={diagramX(arrangement.diagramExtent[1])}
-                y1={diagramY(50)}
-                y2={diagramY(50)}
-              />
+              <g aria-hidden="true">
+                <line
+                  className="diagram-rail above"
+                  x1={diagramX(arrangement.diagramExtent[0])}
+                  x2={diagramX(arrangement.diagramExtent[1])}
+                  y1={diagramUpperTrackY}
+                  y2={diagramUpperTrackY}
+                />
+                <line
+                  className="diagram-rail below"
+                  x1={diagramX(arrangement.diagramExtent[0])}
+                  x2={diagramX(arrangement.diagramExtent[1])}
+                  y1={diagramLowerTrackY}
+                  y2={diagramLowerTrackY}
+                />
+              </g>
               {arrangement.diagram.map((segment) => {
                 const upperCell = segment.aboveCellId === null ? null : arrangement.cells[segment.aboveCellId];
                 const lowerCell = segment.belowCellId === null ? null : arrangement.cells[segment.belowCellId];
@@ -1147,34 +1158,42 @@ export default function PolygonLab() {
                 const upperSelected = upperCell ? selected.has(upperCell.id) : false;
                 const lowerSelected = lowerCell ? selected.has(lowerCell.id) : false;
                 const hovering = hoverSegment === segment.id;
-                const previewSide = hovering ? hoverDiagramSide : null;
-                const previewCell = previewSide === "above" ? upperCell : previewSide === "below" ? lowerCell : null;
-                const previewing = previewCell !== null;
-                const boundaryCell = upperSelected !== lowerSelected
-                  ? upperSelected
-                    ? upperCell
-                    : lowerCell
-                  : null;
+                const previewAbove = hovering && hoverDiagramSide === "above" && upperCell !== null;
+                const previewBelow = hovering && hoverDiagramSide === "below" && lowerCell !== null;
                 const x0 = diagramX(segment.t0);
                 const x1 = diagramX(segment.t1);
                 const width = x1 - x0;
                 return (
                   <g key={segment.id} className={hovering ? "diagram-segment is-hovered" : "diagram-segment"}>
                     <line
-                      className={`diagram-interval ${boundaryCell ? "is-boundary" : "is-internal"} ${previewing ? "is-preview" : ""}`}
+                      className={[
+                        "diagram-occupancy",
+                        "above",
+                        upperCell ? (upperSelected ? "is-occupied" : "is-unoccupied") : "is-empty",
+                        previewAbove ? "is-preview" : "",
+                      ].filter(Boolean).join(" ")}
                       x1={x0}
                       x2={x1}
-                      y1={diagramY(50)}
-                      y2={diagramY(50)}
-                      stroke={
-                        previewing
-                          ? previewSide === "above"
-                            ? "var(--upper)"
-                            : "var(--lower)"
-                          : boundaryCell
-                            ? layerColor(boundaryCell.layer)
-                            : undefined
-                      }
+                      y1={diagramUpperTrackY}
+                      y2={diagramUpperTrackY}
+                      data-diagram-track="above"
+                      data-occupied={upperSelected}
+                      aria-hidden="true"
+                    />
+                    <line
+                      className={[
+                        "diagram-occupancy",
+                        "below",
+                        lowerCell ? (lowerSelected ? "is-occupied" : "is-unoccupied") : "is-empty",
+                        previewBelow ? "is-preview" : "",
+                      ].filter(Boolean).join(" ")}
+                      x1={x0}
+                      x2={x1}
+                      y1={diagramLowerTrackY}
+                      y2={diagramLowerTrackY}
+                      data-diagram-track="below"
+                      data-occupied={lowerSelected}
+                      aria-hidden="true"
                     />
                     {upperOrbit && width > 70 ? (
                       <text className="diagram-label" x={(x0 + x1) / 2} y={diagramY(29)}>
@@ -1186,9 +1205,9 @@ export default function PolygonLab() {
                         O{lowerOrbit.id + 1}
                       </text>
                     ) : null}
-                    <line className="diagram-tick" x1={x0} x2={x0} y1={diagramY(44)} y2={diagramY(56)} />
+                    <line className="diagram-tick" x1={x0} x2={x0} y1={diagramY(44)} y2={diagramY(61)} />
                     {segment.id === arrangement.diagram.length - 1 ? (
-                      <line className="diagram-tick" x1={x1} x2={x1} y1={diagramY(44)} y2={diagramY(56)} />
+                      <line className="diagram-tick" x1={x1} x2={x1} y1={diagramY(44)} y2={diagramY(61)} />
                     ) : null}
                     <rect
                       className={`diagram-hit above ${upperCell ? "" : "is-empty"}`}
