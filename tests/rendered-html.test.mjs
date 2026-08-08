@@ -38,7 +38,7 @@ test("server-renders Stellation by default with both construction modes availabl
   assert.match(html, /Supporting lines, stellation cells/);
   assert.match(html, /Cells immediately above and below the line/);
   assert.match(html, /<button type="button">clear<\/button>/);
-  assert.match(html, /click above or below the line to toggle that cell/);
+  assert.match(html, /click an upper or lower segment to toggle that cell/);
   assert.doesNotMatch(html, /diagram-band/);
   assert.equal(html.match(/class="diagram-occupancy/g)?.length, 6);
   assert.equal(html.match(/data-diagram-track="above"/g)?.length, 3);
@@ -47,6 +47,10 @@ test("server-renders Stellation by default with both construction modes availabl
   assert.equal(html.match(/data-occupied="false"/g)?.length, 5);
   assert.equal(html.match(/data-diagram-side="above"/g)?.length, 3);
   assert.equal(html.match(/data-diagram-side="below"/g)?.length, 3);
+  assert.equal(html.match(/class="diagram-hit/g)?.length, 6);
+  assert.equal(html.match(/data-segment-id="0"/g)?.length, 2);
+  assert.equal(html.match(/data-segment-id="1"/g)?.length, 2);
+  assert.equal(html.match(/data-segment-id="2"/g)?.length, 2);
   assert.match(html, /role="group" aria-label="One-dimensional arrangement/);
   assert.equal(html.match(/aria-pressed="(?:true|false)" aria-label="Interval/g)?.length, 4);
   assert.match(html, /data-layer-number="1" aria-label="Toggle every cell in layer 1" aria-pressed="false"/);

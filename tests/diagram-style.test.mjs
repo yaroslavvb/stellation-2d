@@ -23,18 +23,19 @@ test("diagram uses independent solid upper and lower occupancy tracks", async ()
   assert.doesNotMatch(component, /const boundaryCell = upperSelected !== lowerSelected/);
 });
 
-test("diagram focus uses a subtle side-aware outline", async () => {
+test("diagram segment controls stay invisible while focus remains line-local", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const hit = css.match(/\.diagram-hit\s*\{([^}]*)\}/)?.[1] ?? "";
-  const below = css.match(/\.diagram-hit\.below\s*\{([^}]*)\}/)?.[1] ?? "";
+  const empty = css.match(/\.diagram-hit\.is-empty\s*\{([^}]*)\}/)?.[1] ?? "";
   const focus = css.match(/\.diagram-hit:focus-visible\s*\{([^}]*)\}/)?.[1] ?? "";
+  const occupiedPreview = css.match(/\.diagram-occupancy\.is-occupied\.is-preview\s*\{([^}]*)\}/)?.[1] ?? "";
 
-  assert.match(hit, /--diagram-focus-color:\s*var\(--upper\)\s*;/);
-  assert.match(below, /--diagram-focus-color:\s*var\(--lower\)\s*;/);
-  assert.match(focus, /fill:\s*color-mix\(in srgb, var\(--diagram-focus-color\) 4%, transparent\)\s*;/);
-  assert.match(focus, /stroke:\s*color-mix\(in srgb, var\(--diagram-focus-color\) 48%, var\(--line-strong\)\)\s*;/);
-  assert.match(focus, /stroke-width:\s*1px\s*;/);
-  assert.doesNotMatch(focus, /stroke:\s*var\(--cyan\)/);
+  assert.match(hit, /fill:\s*transparent\s*;/);
+  assert.match(hit, /cursor:\s*pointer\s*;/);
+  assert.match(empty, /pointer-events:\s*none\s*;/);
+  assert.match(focus, /outline:\s*none\s*;/);
+  assert.doesNotMatch(focus, /(?:^|\s)(?:fill|stroke|stroke-width):/m);
+  assert.match(occupiedPreview, /stroke:\s*color-mix\(in srgb, var\(--diagram-track-color\) 74%, var\(--text\)\)\s*;/);
 });
 
 test("facetting link radios suppress browser outline artifacts", async () => {

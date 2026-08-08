@@ -1363,7 +1363,7 @@ export default function PolygonLab() {
               </span>
               <span>
                 {mode === "stellation" ? (
-                  <>click above or below the line to toggle that cell</>
+                  <>click an upper or lower segment to toggle that cell</>
                 ) : (
                   <>click a row to choose the complete closed circuit</>
                 )}

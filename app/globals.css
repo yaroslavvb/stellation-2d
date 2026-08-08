@@ -617,6 +617,7 @@ kbd {
 }
 
 .diagram-occupancy.is-occupied.is-preview {
+  stroke: color-mix(in srgb, var(--diagram-track-color) 74%, var(--text));
   opacity: 1;
 }
 
@@ -636,13 +637,8 @@ kbd {
 }
 
 .diagram-hit {
-  --diagram-focus-color: var(--upper);
   fill: transparent;
   cursor: pointer;
-}
-
-.diagram-hit.below {
-  --diagram-focus-color: var(--lower);
 }
 
 .diagram-hit.is-empty {
@@ -652,10 +648,6 @@ kbd {
 
 .diagram-hit:focus-visible {
   outline: none;
-  fill: color-mix(in srgb, var(--diagram-focus-color) 4%, transparent);
-  stroke: color-mix(in srgb, var(--diagram-focus-color) 48%, var(--line-strong));
-  stroke-width: 1px;
-  vector-effect: non-scaling-stroke;
 }
 
 .facet-link-canvas,
