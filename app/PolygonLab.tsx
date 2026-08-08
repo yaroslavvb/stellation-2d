@@ -77,6 +77,7 @@ type ViewDimensions = {
   spatialWidth: number;
   spatialHeight: number;
   diagramWidth: number;
+  diagramHeight: number;
 };
 
 function freshViews(): Record<LabMode, ViewState> {
@@ -507,19 +508,22 @@ export default function PolygonLab() {
       if (
         !(spatialBounds.width > 0) ||
         !(spatialBounds.height > 0) ||
-        !(diagramBounds.width > 0)
+        !(diagramBounds.width > 0) ||
+        !(diagramBounds.height > 0)
       ) return;
 
       const next = {
         spatialWidth: spatialBounds.width,
         spatialHeight: spatialBounds.height,
         diagramWidth: diagramBounds.width,
+        diagramHeight: diagramBounds.height,
       };
       setViewDimensions((current) =>
         current &&
         current.spatialWidth === next.spatialWidth &&
         current.spatialHeight === next.spatialHeight &&
-        current.diagramWidth === next.diagramWidth
+        current.diagramWidth === next.diagramWidth &&
+        current.diagramHeight === next.diagramHeight
           ? current
           : next,
       );
@@ -827,10 +831,15 @@ export default function PolygonLab() {
     : diagramSpanAtZoom(baseDiagramSpan * 1.14, view.zoom * diagramView.zoom);
   const diagramCenter = diagramView.center || (arrangement.diagramExtent[0] + arrangement.diagramExtent[1]) / 2;
   const diagramStart = diagramCenter - diagramSpan / 2;
-  const diagramX = (position: number) => diagramViewportPosition(position, diagramStart, diagramSpan);
-  const diagramViewBox = "0 0 1000 100";
+  const diagramViewportWidth = Math.max(1, viewDimensions?.diagramWidth ?? 1000);
+  const diagramViewportHeight = Math.max(1, (viewDimensions?.diagramHeight ?? 220) - 62);
+  const diagramX = (position: number) =>
+    diagramViewportPosition(position, diagramStart, diagramSpan, diagramViewportWidth);
+  const diagramY = (position: number) => (position / 100) * diagramViewportHeight;
+  const diagramViewBox = `0 0 ${diagramViewportWidth} ${diagramViewportHeight}`;
   const maxFacetChordLength = Math.max(1e-6, ...facetLinks.map((link) => link.chordLength));
-  const facetLinkViewportWidth = Math.max(1, viewDimensions?.diagramWidth ?? 1000);
+  const facetLinkViewportWidth = diagramViewportWidth;
+  const facetLinkViewportHeight = diagramViewportHeight;
   const facetLinkCenterX = facetLinkViewportWidth / 2;
   const facetLinkSideGutter = facetLinkViewportWidth < 540 ? 42 : 120;
   const facetLinkAvailableOffset = Math.max(40, facetLinkCenterX - facetLinkSideGutter);
@@ -1127,8 +1136,8 @@ export default function PolygonLab() {
                 className="diagram-rail"
                 x1={diagramX(arrangement.diagramExtent[0])}
                 x2={diagramX(arrangement.diagramExtent[1])}
-                y1="50"
-                y2="50"
+                y1={diagramY(50)}
+                y2={diagramY(50)}
               />
               {arrangement.diagram.map((segment) => {
                 const upperCell = segment.aboveCellId === null ? null : arrangement.cells[segment.aboveCellId];
@@ -1155,8 +1164,8 @@ export default function PolygonLab() {
                       className={`diagram-interval ${boundaryCell ? "is-boundary" : "is-internal"} ${previewing ? "is-preview" : ""}`}
                       x1={x0}
                       x2={x1}
-                      y1="50"
-                      y2="50"
+                      y1={diagramY(50)}
+                      y2={diagramY(50)}
                       stroke={
                         previewing
                           ? previewSide === "above"
@@ -1168,25 +1177,25 @@ export default function PolygonLab() {
                       }
                     />
                     {upperOrbit && width > 70 ? (
-                      <text className="diagram-label" x={(x0 + x1) / 2} y="29">
+                      <text className="diagram-label" x={(x0 + x1) / 2} y={diagramY(29)}>
                         O{upperOrbit.id + 1}
                       </text>
                     ) : null}
                     {lowerOrbit && width > 70 ? (
-                      <text className="diagram-label" x={(x0 + x1) / 2} y="72">
+                      <text className="diagram-label" x={(x0 + x1) / 2} y={diagramY(72)}>
                         O{lowerOrbit.id + 1}
                       </text>
                     ) : null}
-                    <line className="diagram-tick" x1={x0} x2={x0} y1="44" y2="56" />
+                    <line className="diagram-tick" x1={x0} x2={x0} y1={diagramY(44)} y2={diagramY(56)} />
                     {segment.id === arrangement.diagram.length - 1 ? (
-                      <line className="diagram-tick" x1={x1} x2={x1} y1="44" y2="56" />
+                      <line className="diagram-tick" x1={x1} x2={x1} y1={diagramY(44)} y2={diagramY(56)} />
                     ) : null}
                     <rect
                       className={`diagram-hit above ${upperCell ? "" : "is-empty"}`}
                       x={x0}
-                      y="4"
+                      y={diagramY(4)}
                       width={width}
-                      height="46"
+                      height={diagramY(46)}
                       data-segment-id={segment.id}
                       data-diagram-side="above"
                       tabIndex={upperCell ? 0 : -1}
@@ -1220,9 +1229,9 @@ export default function PolygonLab() {
                     <rect
                       className={`diagram-hit below ${lowerCell ? "" : "is-empty"}`}
                       x={x0}
-                      y="50"
+                      y={diagramY(50)}
                       width={width}
-                      height="46"
+                      height={diagramY(46)}
                       data-segment-id={segment.id}
                       data-diagram-side="below"
                       tabIndex={lowerCell ? 0 : -1}
@@ -1260,7 +1269,7 @@ export default function PolygonLab() {
             ) : (
               <svg
                 className="diagram-canvas facet-link-canvas"
-                viewBox={`0 0 ${facetLinkViewportWidth} 100`}
+                viewBox={`0 0 ${facetLinkViewportWidth} ${facetLinkViewportHeight}`}
                 preserveAspectRatio="none"
                 role="radiogroup"
                 aria-label={`Vertex-link diagram at vertex 1 with ${facetLinks.length} valid connection steps`}
@@ -1270,9 +1279,9 @@ export default function PolygonLab() {
                   const selectedPair = link.step === activeFacetStep;
                   const hoveredPair = link.step === hoverFacetStep;
                   const color = layerColor(link.step - 1);
-                  const rowSpan = 100 / Math.max(1, facetLinks.length);
+                  const rowSpan = facetLinkViewportHeight / Math.max(1, facetLinks.length);
                   const rowY = rowSpan * (rowIndex + 0.5);
-                  const rowHeight = Math.max(8, Math.min(16, rowSpan - 3));
+                  const rowHeight = Math.max(18, Math.min(26, rowSpan - 4));
                   const offset = facetLinkOffset(link.chordLength);
                   const leftX = facetLinkCenterX - offset;
                   const rightX = facetLinkCenterX + offset;
@@ -1316,9 +1325,9 @@ export default function PolygonLab() {
                       </text>
                       <line className="facet-link-arm" x1={facetLinkCenterX} x2={leftX} y1={rowY} y2={rowY} />
                       <line className="facet-link-arm" x1={facetLinkCenterX} x2={rightX} y1={rowY} y2={rowY} />
-                      <ellipse className="facet-link-node is-target" cx={leftX} cy={rowY} rx="10" ry="4.5" />
-                      <ellipse className="facet-link-node is-reference" cx={facetLinkCenterX} cy={rowY} rx="10" ry="4.5" />
-                      <ellipse className="facet-link-node is-target" cx={rightX} cy={rowY} rx="10" ry="4.5" />
+                      <ellipse className="facet-link-node is-target" cx={leftX} cy={rowY} rx="10" ry="7" />
+                      <ellipse className="facet-link-node is-reference" cx={facetLinkCenterX} cy={rowY} rx="10" ry="7" />
+                      <ellipse className="facet-link-node is-target" cx={rightX} cy={rowY} rx="10" ry="7" />
                       <text className="facet-link-node-label target" x={leftX} y={rowY}>{link.leftVertexId + 1}</text>
                       <text className="facet-link-node-label reference" x={facetLinkCenterX} y={rowY}>1</text>
                       <text className="facet-link-node-label target" x={rightX} y={rowY}>{link.rightVertexId + 1}</text>

@@ -36,6 +36,28 @@ test("facetting link radios suppress browser outline artifacts", async () => {
   assert.match(focusRow, /stroke:\s*var\(--cyan\)\s*;/);
 });
 
+test("facetting diagram text keeps natural proportions and a clear type hierarchy", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const component = await readFile(new URL("../app/PolygonLab.tsx", import.meta.url), "utf8");
+  const symbol = css.match(/\.facet-link-symbol\s*\{([^}]*)\}/)?.[1] ?? "";
+  const node = css.match(/\.facet-link-node-label\s*\{([^}]*)\}/)?.[1] ?? "";
+  const description = css.match(/^\.facet-link-description\s*\{(\s*fill:[^}]*)\}/m)?.[1] ?? "";
+  const legend = css.match(/\.diagram-legend\s*\{([^}]*)\}/)?.[1] ?? "";
+  const diagramLabel = css.match(/\.diagram-label\s*\{([^}]*)\}/)?.[1] ?? "";
+
+  assert.match(component, /diagramHeight:\s*diagramBounds\.height/);
+  assert.match(component, /const diagramViewBox = `0 0 \$\{diagramViewportWidth\} \$\{diagramViewportHeight\}`/);
+  assert.match(component, /const diagramY = \(position: number\) => \(position \/ 100\) \* diagramViewportHeight/);
+  assert.match(component, /viewBox=\{`0 0 \$\{facetLinkViewportWidth\} \$\{facetLinkViewportHeight\}`\}/);
+  assert.match(component, /const rowSpan = facetLinkViewportHeight \/ Math\.max\(1, facetLinks\.length\)/);
+  assert.match(symbol, /font:\s*600 10px\/1 var\(--mono\)\s*;/);
+  assert.match(node, /font:\s*650 9px\/1 var\(--sans\)\s*;/);
+  assert.match(node, /font-variant-numeric:\s*tabular-nums\s*;/);
+  assert.match(description, /font:\s*500 10px\/1\.2 var\(--sans\)\s*;/);
+  assert.match(legend, /font:\s*500 10\.5px\/1\.2 var\(--sans\)\s*;/);
+  assert.match(diagramLabel, /font:\s*600 10px\/1 var\(--sans\)\s*;/);
+});
+
 test("facetting circuits use visible screen-space strokes", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const component = await readFile(new URL("../app/PolygonLab.tsx", import.meta.url), "utf8");
