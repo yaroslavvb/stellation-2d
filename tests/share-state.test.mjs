@@ -12,6 +12,7 @@ test("defines and formats the Stellation default", () => {
     sides: 5,
     symmetry: { family: "D", order: 5 },
     orbitIds: [0],
+    outerOrbitIds: [],
     planeSelected: false,
     facetStep: 1,
   });
@@ -27,6 +28,7 @@ test("accepts legacy hashes as Stellation state", () => {
     sides: 5,
     symmetry: { family: "D", order: 5 },
     orbitIds: [0, 2],
+    outerOrbitIds: [],
     planeSelected: false,
     facetStep: 1,
   });
@@ -35,6 +37,7 @@ test("accepts legacy hashes as Stellation state", () => {
     sides: 5,
     symmetry: { family: "C", order: 5 },
     orbitIds: [],
+    outerOrbitIds: [],
     planeSelected: false,
     facetStep: 1,
   });
@@ -47,6 +50,7 @@ test("round-trips both terminology modes through canonical v2 hashes", () => {
       sides: 8,
       symmetry: { family: "C", order: 2 },
       orbitIds: [0, 3, 9],
+      outerOrbitIds: [1, 4],
       planeSelected: false,
       facetStep: 3,
     },
@@ -55,6 +59,7 @@ test("round-trips both terminology modes through canonical v2 hashes", () => {
       sides: 5,
       symmetry: { family: "D", order: 5 },
       orbitIds: [0, 2],
+      outerOrbitIds: [0],
       planeSelected: true,
       facetStep: 2,
     },
@@ -71,6 +76,7 @@ test("round-trips a completely empty stellation selection", () => {
     sides: 5,
     symmetry: { family: "D", order: 5 },
     orbitIds: [],
+    outerOrbitIds: [],
     planeSelected: false,
     facetStep: 1,
   };
@@ -88,6 +94,7 @@ test("round-trips the optional entire-plane selection", () => {
     sides: 5,
     symmetry: { family: "D", order: 5 },
     orbitIds: [0],
+    outerOrbitIds: [],
     planeSelected: true,
     facetStep: 1,
   };
@@ -97,6 +104,27 @@ test("round-trips the optional entire-plane selection", () => {
     "#v=2&mode=stellation&n=5&sym=D5&st=0&pl=1&fa=1",
   );
   assert.deepEqual(parseShareHash(formatShareHash(state)), state);
+});
+
+test("round-trips symmetry-aware outermost-cell orbit selections", () => {
+  const state = {
+    mode: "stellation",
+    sides: 7,
+    symmetry: { family: "C", order: 1 },
+    orbitIds: [0, 2],
+    outerOrbitIds: [5, 1, 5, 3],
+    planeSelected: false,
+    facetStep: 1,
+  };
+
+  assert.equal(
+    formatShareHash(state),
+    "#v=2&mode=stellation&n=7&sym=C1&st=0,2&out=1,3,5&fa=1",
+  );
+  assert.deepEqual(parseShareHash(formatShareHash(state)), {
+    ...state,
+    outerOrbitIds: [1, 3, 5],
+  });
 });
 
 test("rejects invalid shared geometry and malformed input safely", () => {
@@ -121,6 +149,7 @@ test("defaults missing or malformed mode-specific fields without discarding shar
     sides: 8,
     symmetry: { family: "C", order: 2 },
     orbitIds: [4],
+    outerOrbitIds: [],
     planeSelected: false,
     facetStep: 3,
   });
@@ -135,6 +164,7 @@ test("defaults missing or malformed mode-specific fields without discarding shar
       sides: 5,
       symmetry: { family: "D", order: 5 },
       orbitIds: [0],
+      outerOrbitIds: [],
       planeSelected: false,
       facetStep: 2,
     });
@@ -149,6 +179,7 @@ test("resets only an invalid or missing facet step to one", () => {
       sides: 5,
       symmetry: { family: "C", order: 5 },
       orbitIds: [0, 2],
+      outerOrbitIds: [],
       planeSelected: false,
       facetStep: 1,
     });
@@ -160,6 +191,7 @@ test("resets only an invalid or missing facet step to one", () => {
       sides: 5,
       symmetry: { family: "C", order: 5 },
       orbitIds: [0, 2],
+      outerOrbitIds: [],
       planeSelected: false,
       facetStep: 99,
     }),
@@ -174,9 +206,10 @@ test("formats fields canonically and deduplicates sorted orbit ids", () => {
       sides: 10,
       symmetry: { family: "D", order: 2 },
       orbitIds: [7, 2, 7, 0, 2],
+      outerOrbitIds: [4, 1, 4, 0],
       planeSelected: false,
       facetStep: 4,
     }),
-    "#v=2&mode=facetting&n=10&sym=D2&st=0,2,7&fa=4",
+    "#v=2&mode=facetting&n=10&sym=D2&st=0,2,7&out=0,1,4&fa=4",
   );
 });

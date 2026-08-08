@@ -8,6 +8,7 @@ export type ShareState = {
     order: number;
   };
   orbitIds: number[];
+  outerOrbitIds: number[];
   planeSelected: boolean;
   facetStep: number;
 };
@@ -17,6 +18,7 @@ export const DEFAULT_SHARE_STATE: ShareState = {
   sides: 5,
   symmetry: { family: "D", order: 5 },
   orbitIds: [0],
+  outerOrbitIds: [],
   planeSelected: false,
   facetStep: 1,
 };
@@ -103,6 +105,7 @@ function parseV2Hash(value: string): ShareState | null {
 
   const symmetry = parseSymmetry(params.get("sym"), sides);
   const orbitIds = parseOrbitIds(params.get("st")) ?? [0];
+  const outerOrbitIds = parseOrbitIds(params.get("out")) ?? [];
   if (!symmetry) return null;
 
   const rawFacetStep = parseUnsignedInteger(params.get("fa"));
@@ -111,6 +114,7 @@ function parseV2Hash(value: string): ShareState | null {
     sides,
     symmetry,
     orbitIds,
+    outerOrbitIds,
     planeSelected: params.get("pl") === "1",
     facetStep: normalizeFacetStep(rawFacetStep, sides),
   };
@@ -139,6 +143,7 @@ function parseLegacyHash(value: string): ShareState | null {
     sides,
     symmetry,
     orbitIds,
+    outerOrbitIds: [],
     planeSelected: false,
     facetStep: 1,
   };
@@ -164,7 +169,10 @@ export function formatShareHash(state: ShareState): string {
   const orbitIds = Array.isArray(state.orbitIds)
     ? normalizeOrbitIds(state.orbitIds)
     : null;
-  if (!symmetry || !orbitIds) {
+  const outerOrbitIds = Array.isArray(state.outerOrbitIds)
+    ? normalizeOrbitIds(state.outerOrbitIds)
+    : null;
+  if (!symmetry || !orbitIds || !outerOrbitIds) {
     throw new RangeError("Share state has invalid symmetry or orbit identifiers.");
   }
 
@@ -176,6 +184,7 @@ export function formatShareHash(state: ShareState): string {
     `sym=${symmetry.family}${symmetry.order}`,
     `st=${orbitIds.join(",")}`,
   ];
+  if (outerOrbitIds.length > 0) fields.push(`out=${outerOrbitIds.join(",")}`);
   if (state.planeSelected) fields.push("pl=1");
   fields.push(`fa=${facetStep}`);
   return fields.join("&");

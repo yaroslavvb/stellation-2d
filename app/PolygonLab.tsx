@@ -4,7 +4,9 @@ import {
   buildArrangement,
   buildFacetting,
   buildOrbitMap,
+  buildOutermostOrbitMap,
   facettingOptions,
+  outermostCellRegions,
   selectedBoundary,
   supportClosure,
   symmetryLabel,
@@ -30,6 +32,8 @@ import {
 } from "./diagram-interaction";
 import {
   applySelectionAction,
+  outermostCellId,
+  outermostSelectionId,
   PLANE_SELECTION_ID,
   toggleActionForTargets,
 } from "./selection";
@@ -220,9 +224,24 @@ function selectedOrbitIds(selected: Set<number>, orbitMap: ReturnType<typeof bui
     .map((orbit) => orbit.id);
 }
 
-function formatSelection(selected: Set<number>, orbitMap: ReturnType<typeof buildOrbitMap>) {
-  const entries = selectedOrbitIds(selected, orbitMap).map(String);
-  if (selected.has(PLANE_SELECTION_ID)) entries.unshift("plane");
+function selectedOutermostOrbitIds(
+  selected: Set<number>,
+  orbitMap: ReturnType<typeof buildOutermostOrbitMap>,
+) {
+  return orbitMap.orbits
+    .filter((orbit) => orbit.cellIds.every((cellId) => selected.has(outermostSelectionId(cellId))))
+    .map((orbit) => orbit.id);
+}
+
+function formatSelection(
+  selected: Set<number>,
+  orbitMap: ReturnType<typeof buildOrbitMap>,
+  outermostOrbitMap: ReturnType<typeof buildOutermostOrbitMap>,
+) {
+  const entries: string[] = [];
+  if (selected.has(PLANE_SELECTION_ID)) entries.push("plane");
+  entries.push(...selectedOutermostOrbitIds(selected, outermostOrbitMap).map((id) => `outer${id + 1}`));
+  entries.push(...selectedOrbitIds(selected, orbitMap).map(String));
   return `{${entries.join(",")}}`;
 }
 
@@ -252,6 +271,10 @@ export default function PolygonLab() {
     () => buildOrbitMap(arrangement, symmetry),
     [arrangement, symmetry],
   );
+  const outermostOrbitMap = useMemo(
+    () => buildOutermostOrbitMap(arrangement, symmetry),
+    [arrangement, symmetry],
+  );
   const [selected, setSelected] = useState<Set<number>>(new Set([0]));
   const [past, setPast] = useState<Array<Set<number>>>([]);
   const [future, setFuture] = useState<Array<Set<number>>>([]);
@@ -262,6 +285,7 @@ export default function PolygonLab() {
   const [hoverLayer, setHoverLayer] = useState<number | null>(null);
   const [hoverSegment, setHoverSegment] = useState<number | null>(null);
   const [hoverDiagramSide, setHoverDiagramSide] = useState<DiagramSide | null>(null);
+  const [hoverOutermost, setHoverOutermost] = useState<number | null>(null);
   const [hoverPlane, setHoverPlane] = useState(false);
   const [hoverFacetStep, setHoverFacetStep] = useState<number | null>(null);
   const [modifiers, setModifiers] = useState<ModifierState>(EMPTY_MODIFIERS);
@@ -337,6 +361,11 @@ export default function PolygonLab() {
   );
 
   const coreOrbit = orbitMap.byCell.get(arrangement.coreCellId);
+  const selectedOuterOrbitIds = useMemo(
+    () => selectedOutermostOrbitIds(selected, outermostOrbitMap),
+    [outermostOrbitMap, selected],
+  );
+  const outermostSelected = selectedOuterOrbitIds.length > 0;
   const planeSelected = selected.has(PLANE_SELECTION_ID);
   const orbitCardinalityPalette = useMemo(
     () => buildOrbitCardinalityPalette(orbitMap.orbits.map((orbit) => orbit.cellIds.length)),
@@ -379,6 +408,15 @@ export default function PolygonLab() {
     }
     return result;
   }, [arrangement, hoverCell, hoverDiagramSide, hoverLayer, hoverSegment, orbitMap]);
+  const highlightedOutermostCells = useMemo(
+    () =>
+      new Set(
+        hoverOutermost === null
+          ? []
+          : (outermostOrbitMap.byCell.get(hoverOutermost)?.cellIds ?? [hoverOutermost]),
+      ),
+    [hoverOutermost, outermostOrbitMap],
+  );
 
   const commit = useCallback(
     (nextOrUpdater: Set<number> | ((current: Set<number>) => Set<number>), message: string) => {
@@ -585,6 +623,11 @@ export default function PolygonLab() {
     for (const orbitId of parsedHash.current.orbitIds) {
       for (const cellId of orbitMap.orbits[orbitId]?.cellIds ?? []) restored.add(cellId);
     }
+    for (const orbitId of parsedHash.current.outerOrbitIds) {
+      for (const cellId of outermostOrbitMap.orbits[orbitId]?.cellIds ?? []) {
+        restored.add(outermostSelectionId(cellId));
+      }
+    }
     if (parsedHash.current.planeSelected) restored.add(PLANE_SELECTION_ID);
     setSelected(restored);
     setStatus(
@@ -594,7 +637,7 @@ export default function PolygonLab() {
     );
     skipHashWrite.current = true;
     hashReady.current = true;
-  }, [orbitMap, sides, symmetry]);
+  }, [orbitMap, outermostOrbitMap, sides, symmetry]);
 
   useEffect(() => {
     if (!hashReady.current) return;
@@ -607,11 +650,12 @@ export default function PolygonLab() {
       sides,
       symmetry,
       orbitIds: selectedOrbitIds(selected, orbitMap),
+      outerOrbitIds: selectedOuterOrbitIds,
       planeSelected,
       facetStep: activeFacetStep,
     });
     window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
-  }, [activeFacetStep, mode, orbitMap, planeSelected, selected, sides, symmetry]);
+  }, [activeFacetStep, mode, orbitMap, planeSelected, selected, selectedOuterOrbitIds, sides, symmetry]);
 
   const changeSides = (nextSides: number) => {
     setSides(nextSides);
@@ -622,6 +666,7 @@ export default function PolygonLab() {
     setHoverLayer(null);
     setHoverSegment(null);
     setHoverDiagramSide(null);
+    setHoverOutermost(null);
     setHoverPlane(false);
     setHoverFacetStep(null);
   };
@@ -633,6 +678,7 @@ export default function PolygonLab() {
     setHoverLayer(null);
     setHoverSegment(null);
     setHoverDiagramSide(null);
+    setHoverOutermost(null);
     setHoverPlane(false);
     setHoverFacetStep(null);
     setStatus(
@@ -647,8 +693,17 @@ export default function PolygonLab() {
     if (!match) return;
     const next = { family: match[1] as "C" | "D", order: Number(match[2]) };
     const nextOrbitMap = buildOrbitMap(arrangement, next);
+    const nextOutermostOrbitMap = buildOutermostOrbitMap(arrangement, next);
     setSelected((current) => {
       const regrouped = buildInvariantSet(current, nextOrbitMap);
+      for (const selectionId of current) {
+        const cellId = outermostCellId(selectionId);
+        if (cellId === null || cellId >= arrangement.sides) continue;
+        const orbit = nextOutermostOrbitMap.byCell.get(cellId);
+        for (const member of orbit?.cellIds ?? [cellId]) {
+          regrouped.add(outermostSelectionId(member));
+        }
+      }
       if (current.has(PLANE_SELECTION_ID)) regrouped.add(PLANE_SELECTION_ID);
       return regrouped;
     });
@@ -711,6 +766,13 @@ export default function PolygonLab() {
     if (event.button === 2) return;
     const target = (event.target as Element).closest<SVGElement>("[data-diagram-action]");
     const action = target?.dataset.diagramAction;
+    if (target && action) {
+      event.preventDefault();
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement || activeElement instanceof SVGElement) {
+        activeElement.blur();
+      }
+    }
     diagramDrag.current = {
       x: event.clientX,
       y: event.clientY,
@@ -720,7 +782,7 @@ export default function PolygonLab() {
       dragged: false,
       segmentId: target ? Number(target.dataset.segmentId) : null,
       action:
-        action === "above" || action === "below" || action === "plane"
+        action === "above" || action === "below" || action === "outer" || action === "plane"
           ? action
           : null,
     };
@@ -764,6 +826,17 @@ export default function PolygonLab() {
   };
 
   const actOnDiagram = (segmentId: number, action: DiagramAction) => {
+    if (action === "outer") {
+      const orbit = outermostOrbitMap.byCell.get(segmentId);
+      if (!orbit) return;
+      const targets = orbit.cellIds.map(outermostSelectionId);
+      const removing = targets.every((selectionId) => selected.has(selectionId));
+      commit(
+        (current) => applySelectionAction(current, targets, "toggle"),
+        `${removing ? "Removed" : "Selected"} outer O${orbit.id + 1}`,
+      );
+      return;
+    }
     const segment = arrangement.diagram[segmentId];
     if (!segment) return;
     if (action === "plane") {
@@ -827,6 +900,7 @@ export default function PolygonLab() {
         sides,
         symmetry,
         orbitIds: selectedOrbitIds(selected, orbitMap),
+        outerOrbitIds: selectedOuterOrbitIds,
         planeSelected,
         facetStep: activeFacetStep,
       });
@@ -866,6 +940,34 @@ export default function PolygonLab() {
   const diagramUpperTrackY = diagramY(50);
   const diagramLowerTrackY = diagramY(58);
   const diagramViewBox = `0 0 ${diagramViewportWidth} ${diagramViewportHeight}`;
+  const outermostColor = layerColor(Math.ceil(sides / 2));
+  const outermostRegions = outermostCellRegions(arrangement, {
+    minX: view.x - viewSpan / 2,
+    maxX: view.x + viewSpan / 2,
+    minY: -(view.y + viewSpan / 2),
+    maxY: -(view.y - viewSpan / 2),
+  });
+  const clampDiagramX = (position: number) =>
+    Math.min(diagramViewportWidth, Math.max(0, position));
+  const leftOuterRayEnd = clampDiagramX(diagramX(arrangement.diagramExtent[0]));
+  const rightOuterRayStart = clampDiagramX(diagramX(arrangement.diagramExtent[1]));
+  const outermostRunLength = Math.ceil(sides / 2);
+  const outerDiagramRays = [
+    {
+      key: "left",
+      cellId: (sides - outermostRunLength + 1) % sides,
+      label: "Left",
+      x0: 0,
+      x1: leftOuterRayEnd,
+    },
+    {
+      key: "right",
+      cellId: 0,
+      label: "Right",
+      x0: rightOuterRayStart,
+      x1: diagramViewportWidth,
+    },
+  ].filter((ray) => ray.x1 - ray.x0 > 0.5);
   const maxFacetChordLength = Math.max(1e-6, ...facetLinks.map((link) => link.chordLength));
   const facetLinkViewportWidth = diagramViewportWidth;
   const facetLinkViewportHeight = diagramViewportHeight;
@@ -910,7 +1012,7 @@ export default function PolygonLab() {
               <span><b>{sides}</b> lines</span>
               <span><b>{arrangement.cells.length}</b> bounded cells</span>
               <span><b>{maxLayer + 1}</b> layers</span>
-              <span><b>{planeSelected ? "∞" : selectedArea.toFixed(2)}</b> area</span>
+              <span><b>{planeSelected || outermostSelected ? "∞" : selectedArea.toFixed(2)}</b> area</span>
             </>
           ) : (
             <>
@@ -961,9 +1063,12 @@ export default function PolygonLab() {
             <svg
               className={[
                 "spatial-canvas",
+                mode === "stellation" && outermostSelected ? "is-outermost-selected" : "",
+                mode === "stellation" && hoverOutermost !== null ? "is-outermost-highlighted" : "",
                 mode === "stellation" && planeSelected ? "is-plane-selected" : "",
                 mode === "stellation" && hoverPlane ? "is-plane-highlighted" : "",
               ].filter(Boolean).join(" ")}
+              data-outermost-selected={mode === "stellation" ? outermostSelected : undefined}
               data-plane-selected={mode === "stellation" ? planeSelected : undefined}
               viewBox={viewBox}
               role="img"
@@ -1000,6 +1105,24 @@ export default function PolygonLab() {
 
               {mode === "stellation" ? (
                 <>
+                  <g className="outermost-region-layer" aria-hidden="true">
+                    {outermostRegions.map((region) => {
+                      const isSelected = selected.has(outermostSelectionId(region.id));
+                      const isPreview = highlightedOutermostCells.has(region.id);
+                      return (
+                        <path
+                          key={region.id}
+                          className={[
+                            "outermost-region",
+                            isSelected ? "is-selected" : "",
+                            isPreview ? "is-preview" : "",
+                          ].filter(Boolean).join(" ")}
+                          d={polygonPath(region.vertices)}
+                          style={{ "--outermost-color": outermostColor } as React.CSSProperties}
+                        />
+                      );
+                    })}
+                  </g>
                   <g className="arrangement-lines" aria-hidden="true">
                     {arrangement.lines.map((line) => {
                       const anchor = { x: line.normal.x, y: line.normal.y };
@@ -1164,6 +1287,7 @@ export default function PolygonLab() {
               onPointerLeave={() => {
                 setHoverSegment(null);
                 setHoverDiagramSide(null);
+                setHoverOutermost(null);
                 setHoverPlane(false);
               }}
             >
@@ -1183,6 +1307,92 @@ export default function PolygonLab() {
                   y2={diagramLowerTrackY}
                 />
               </g>
+              {outerDiagramRays.map((ray) => {
+                const width = ray.x1 - ray.x0;
+                const orbit = outermostOrbitMap.byCell.get(ray.cellId);
+                const orbitTargets = (orbit?.cellIds ?? [ray.cellId]).map(outermostSelectionId);
+                const raySelected = orbitTargets.every((selectionId) => selected.has(selectionId));
+                const previewOutermost = highlightedOutermostCells.has(ray.cellId);
+                return (
+                  <g key={ray.key} className="diagram-outer-ray">
+                    <line
+                      className={[
+                        "diagram-occupancy",
+                        "below",
+                        "outermost",
+                        raySelected ? "is-occupied" : "is-unoccupied",
+                        previewOutermost ? "is-preview" : "",
+                      ].filter(Boolean).join(" ")}
+                      x1={ray.x0}
+                      x2={ray.x1}
+                      y1={diagramLowerTrackY}
+                      y2={diagramLowerTrackY}
+                      data-diagram-track="outer"
+                      data-occupied={raySelected}
+                      style={{ "--diagram-track-color": outermostColor } as React.CSSProperties}
+                      aria-hidden="true"
+                    />
+                    {width > 62 ? (
+                      <text
+                        className={`diagram-outer-label ${raySelected ? "is-selected" : ""} ${previewOutermost ? "is-preview" : ""}`}
+                        x={(ray.x0 + ray.x1) / 2}
+                        y={diagramY(72)}
+                        style={{ "--outermost-color": outermostColor } as React.CSSProperties}
+                      >
+                        outer O{(orbit?.id ?? ray.cellId) + 1}
+                      </text>
+                    ) : null}
+                    <rect
+                      className="diagram-outer-hit"
+                      x={ray.x0}
+                      y={diagramY(53)}
+                      width={width}
+                      height={diagramY(25)}
+                      data-segment-id={ray.cellId}
+                      data-diagram-action="outer"
+                      data-diagram-outer="true"
+                      tabIndex={0}
+                      role="button"
+                      aria-pressed={raySelected}
+                      aria-label={`${ray.label} outer ray below. Toggle outer O${(orbit?.id ?? ray.cellId) + 1}.`}
+                      onPointerEnter={() => {
+                        setHoverSegment(null);
+                        setHoverDiagramSide(null);
+                        setHoverOutermost(ray.cellId);
+                        setHoverPlane(false);
+                      }}
+                      onPointerLeave={() => {
+                        setHoverSegment(null);
+                        setHoverDiagramSide(null);
+                        setHoverOutermost(null);
+                        setHoverPlane(false);
+                      }}
+                      onFocus={() => {
+                        setHoverSegment(null);
+                        setHoverDiagramSide(null);
+                        setHoverOutermost(ray.cellId);
+                        setHoverPlane(false);
+                      }}
+                      onBlur={() => {
+                        setHoverSegment(null);
+                        setHoverDiagramSide(null);
+                        setHoverOutermost(null);
+                        setHoverPlane(false);
+                      }}
+                      onContextMenu={(event) => event.preventDefault()}
+                      onClick={(event) => {
+                        if (event.detail === 0) actOnDiagram(ray.cellId, "outer");
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          actOnDiagram(ray.cellId, "outer");
+                        }
+                      }}
+                    />
+                  </g>
+                );
+              })}
               {arrangement.diagram.map((segment) => {
                 const upperCell = segment.aboveCellId === null ? null : arrangement.cells[segment.aboveCellId];
                 const lowerCell = segment.belowCellId === null ? null : arrangement.cells[segment.belowCellId];
@@ -1270,16 +1480,25 @@ export default function PolygonLab() {
                       onPointerEnter={() => {
                         setHoverSegment(segment.id);
                         setHoverDiagramSide("above");
+                        setHoverOutermost(null);
+                        setHoverPlane(false);
+                      }}
+                      onPointerLeave={() => {
+                        setHoverSegment(null);
+                        setHoverDiagramSide(null);
+                        setHoverOutermost(null);
                         setHoverPlane(false);
                       }}
                       onFocus={() => {
                         setHoverSegment(segment.id);
                         setHoverDiagramSide("above");
+                        setHoverOutermost(null);
                         setHoverPlane(false);
                       }}
                       onBlur={() => {
                         setHoverSegment(null);
                         setHoverDiagramSide(null);
+                        setHoverOutermost(null);
                         setHoverPlane(false);
                       }}
                       onContextMenu={(event) => event.preventDefault()}
@@ -1310,16 +1529,25 @@ export default function PolygonLab() {
                       onPointerEnter={() => {
                         setHoverSegment(segment.id);
                         setHoverDiagramSide("below");
+                        setHoverOutermost(null);
+                        setHoverPlane(false);
+                      }}
+                      onPointerLeave={() => {
+                        setHoverSegment(null);
+                        setHoverDiagramSide(null);
+                        setHoverOutermost(null);
                         setHoverPlane(false);
                       }}
                       onFocus={() => {
                         setHoverSegment(segment.id);
                         setHoverDiagramSide("below");
+                        setHoverOutermost(null);
                         setHoverPlane(false);
                       }}
                       onBlur={() => {
                         setHoverSegment(null);
                         setHoverDiagramSide(null);
+                        setHoverOutermost(null);
                         setHoverPlane(false);
                       }}
                       onContextMenu={(event) => event.preventDefault()}
@@ -1350,16 +1578,25 @@ export default function PolygonLab() {
                         onPointerEnter={() => {
                           setHoverSegment(segment.id);
                           setHoverDiagramSide(null);
+                          setHoverOutermost(null);
                           setHoverPlane(true);
+                        }}
+                        onPointerLeave={() => {
+                          setHoverSegment(null);
+                          setHoverDiagramSide(null);
+                          setHoverOutermost(null);
+                          setHoverPlane(false);
                         }}
                         onFocus={() => {
                           setHoverSegment(segment.id);
                           setHoverDiagramSide(null);
+                          setHoverOutermost(null);
                           setHoverPlane(true);
                         }}
                         onBlur={() => {
                           setHoverSegment(null);
                           setHoverDiagramSide(null);
+                          setHoverOutermost(null);
                           setHoverPlane(false);
                         }}
                         onContextMenu={(event) => event.preventDefault()}
@@ -1456,7 +1693,7 @@ export default function PolygonLab() {
               </span>
               <span>
                 {mode === "stellation" ? (
-                  <>click a segment for its cell · click plane below the polygon edge</>
+                  <>segments select cells · end rays select outermost · plane selects the field</>
                 ) : (
                   <>click a row to choose the complete closed circuit</>
                 )}
@@ -1468,7 +1705,9 @@ export default function PolygonLab() {
             <span className="status-dot" />
             <span>{status}</span>
             <span className="status-selection">
-              {mode === "stellation" ? formatSelection(selected, orbitMap) : facetSymbol(sides, activeFacetStep)}
+              {mode === "stellation"
+                ? formatSelection(selected, orbitMap, outermostOrbitMap)
+                : facetSymbol(sides, activeFacetStep)}
             </span>
           </div>
         </section>

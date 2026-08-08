@@ -27,12 +27,21 @@ test("diagram segment controls stay invisible while focus remains line-local", a
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const hit = css.match(/\.diagram-hit\s*\{([^}]*)\}/)?.[1] ?? "";
   const empty = css.match(/\.diagram-hit\.is-empty\s*\{([^}]*)\}/)?.[1] ?? "";
-  const focus = css.match(/\.diagram-hit:focus-visible\s*\{([^}]*)\}/)?.[1] ?? "";
+  const focusRule = css.match(/(\.diagram-hit:focus,[^{]*)\{([^}]*)\}/);
+  const focusSelectors = focusRule?.[1] ?? "";
+  const focus = focusRule?.[2] ?? "";
   const occupiedPreview = css.match(/\.diagram-occupancy\.is-occupied\.is-preview\s*\{([^}]*)\}/)?.[1] ?? "";
 
   assert.match(hit, /fill:\s*transparent\s*;/);
+  assert.match(hit, /stroke:\s*none\s*;/);
+  assert.match(hit, /outline:\s*none\s*;/);
   assert.match(hit, /cursor:\s*pointer\s*;/);
   assert.match(empty, /pointer-events:\s*none\s*;/);
+  assert.match(focusSelectors, /\.diagram-hit:focus-visible/);
+  assert.match(focusSelectors, /\.diagram-outer-hit:focus/);
+  assert.match(focusSelectors, /\.diagram-outer-hit:focus-visible/);
+  assert.match(focusSelectors, /\.diagram-plane-hit:focus/);
+  assert.match(focusSelectors, /\.diagram-plane-hit:focus-visible/);
   assert.match(focus, /outline:\s*none\s*;/);
   assert.doesNotMatch(focus, /(?:^|\s)(?:fill|stroke|stroke-width):/m);
   assert.match(occupiedPreview, /stroke:\s*color-mix\(in srgb, var\(--diagram-track-color\) 74%, var\(--text\)\)\s*;/);
@@ -42,13 +51,53 @@ test("the plane control colors the field without drawing a selection box", async
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const selectedPlane = css.match(/\.spatial-canvas\.is-plane-selected\s*\{([^}]*)\}/)?.[1] ?? "";
   const planeHit = css.match(/\.diagram-plane-hit\s*\{([^}]*)\}/)?.[1] ?? "";
-  const planeFocus = css.match(/\.diagram-plane-hit:focus-visible\s*\{([^}]*)\}/)?.[1] ?? "";
+  const focus = css.match(/\.diagram-hit:focus,[^{]*\{([^}]*)\}/)?.[1] ?? "";
 
   assert.match(selectedPlane, /background-color:\s*color-mix\(in srgb, var\(--lower\) 13%, transparent\)\s*;/);
   assert.match(planeHit, /fill:\s*transparent\s*;/);
+  assert.match(planeHit, /stroke:\s*none\s*;/);
   assert.match(planeHit, /cursor:\s*pointer\s*;/);
-  assert.match(planeFocus, /outline:\s*none\s*;/);
-  assert.doesNotMatch(planeFocus, /(?:^|\s)(?:fill|stroke|stroke-width):/m);
+  assert.match(focus, /outline:\s*none\s*;/);
+  assert.doesNotMatch(focus, /(?:^|\s)(?:fill|stroke|stroke-width):/m);
+});
+
+test("outermost cells use frame-free end rays and fill-only spatial wedges", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const component = await readFile(new URL("../app/PolygonLab.tsx", import.meta.url), "utf8");
+  const outerRegions = css.match(/\.outermost-region\s*\{([^}]*)\}/)?.[1] ?? "";
+  const outerHit = css.match(/\.diagram-outer-hit\s*\{([^}]*)\}/)?.[1] ?? "";
+
+  assert.match(outerRegions, /stroke:\s*none\s*;/);
+  assert.match(outerRegions, /pointer-events:\s*none\s*;/);
+  assert.match(outerHit, /fill:\s*transparent\s*;/);
+  assert.match(outerHit, /stroke:\s*none\s*;/);
+  assert.match(outerHit, /outline:\s*none\s*;/);
+  assert.match(component, /if \(target && action\) \{[\s\S]*event\.preventDefault\(\);[\s\S]*activeElement\.blur\(\);/);
+  assert.doesNotMatch(component, /className="diagram-(?:band|selection-box)/);
+});
+
+test("every diagram target clears its hover preview on pointer leave", async () => {
+  const component = await readFile(new URL("../app/PolygonLab.tsx", import.meta.url), "utf8");
+  const markers = [
+    'className="diagram-outer-hit"',
+    'className={`diagram-hit above',
+    'className={`diagram-hit below',
+    'className="diagram-plane-hit"',
+  ];
+
+  for (const marker of markers) {
+    const targetStart = component.indexOf(marker);
+    assert.notEqual(targetStart, -1, `${marker} target exists`);
+    const targetEnd = component.indexOf("/>", targetStart);
+    const leaveStart = component.indexOf("onPointerLeave", targetStart);
+    assert.ok(leaveStart > targetStart && leaveStart < targetEnd, `${marker} has pointer-leave cleanup`);
+    const focusStart = component.indexOf("onFocus", leaveStart);
+    const cleanup = component.slice(leaveStart, focusStart);
+    assert.match(cleanup, /setHoverSegment\(null\)/, `${marker} clears interval hover`);
+    assert.match(cleanup, /setHoverDiagramSide\(null\)/, `${marker} clears side hover`);
+    assert.match(cleanup, /setHoverOutermost\(null\)/, `${marker} clears outer hover`);
+    assert.match(cleanup, /setHoverPlane\(false\)/, `${marker} clears plane hover`);
+  }
 });
 
 test("facetting link radios suppress browser outline artifacts", async () => {

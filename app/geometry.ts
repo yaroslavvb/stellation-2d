@@ -37,6 +37,18 @@ export type Arrangement = {
   coreCellId: number;
 };
 
+export type ClipBounds = {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+};
+
+export type OutermostRegion = {
+  id: number;
+  vertices: Point[];
+};
+
 export type Symmetry = {
   family: "C" | "D";
   order: number;
@@ -660,6 +672,154 @@ export function buildArrangement(sides: number): Arrangement {
     diagramExtent,
     coreCellId: core.id,
   };
+}
+
+function clipPolygonToLineSide(
+  polygon: Point[],
+  line: ArrangementLine,
+  keepOutside: boolean,
+) {
+  if (polygon.length === 0) return polygon;
+  const signedDistance = (point: Point) => dot(point, line.normal) - line.offset;
+  const contains = (distanceFromLine: number) =>
+    keepOutside ? distanceFromLine >= -EPS : distanceFromLine <= EPS;
+  const clipped: Point[] = [];
+
+  for (let index = 0; index < polygon.length; index += 1) {
+    const start = polygon[index];
+    const end = polygon[(index + 1) % polygon.length];
+    const startDistance = signedDistance(start);
+    const endDistance = signedDistance(end);
+    const startInside = contains(startDistance);
+    const endInside = contains(endDistance);
+
+    if (startInside) clipped.push(start);
+    if (startInside === endInside) continue;
+
+    const denominator = startDistance - endDistance;
+    if (Math.abs(denominator) < EPS) continue;
+    const amount = startDistance / denominator;
+    clipped.push({
+      x: start.x + (end.x - start.x) * amount,
+      y: start.y + (end.y - start.y) * amount,
+    });
+  }
+
+  return clipped;
+}
+
+/**
+ * Clip the symmetry-complete outermost unbounded cell family to a finite view.
+ * The family has one wedge per side, each outside a cyclic run of ceil(n / 2)
+ * supporting half-spaces. Keeping these synthetic cells separate preserves the
+ * bounded-cell counts and area calculations used by the rest of the app.
+ */
+export function outermostCellRegions(
+  arrangement: Arrangement,
+  bounds: ClipBounds,
+) {
+  if (
+    !Number.isFinite(bounds.minX) ||
+    !Number.isFinite(bounds.maxX) ||
+    !Number.isFinite(bounds.minY) ||
+    !Number.isFinite(bounds.maxY) ||
+    bounds.maxX <= bounds.minX ||
+    bounds.maxY <= bounds.minY
+  ) {
+    throw new RangeError("Outermost-cell clip bounds must be finite and non-empty.");
+  }
+
+  const rectangle = [
+    { x: bounds.minX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.maxY },
+    { x: bounds.minX, y: bounds.maxY },
+  ];
+  const outsideRunLength = Math.ceil(arrangement.sides / 2);
+  const regions: OutermostRegion[] = [];
+
+  for (let runStart = 0; runStart < arrangement.sides; runStart += 1) {
+    let region = rectangle;
+    for (let lineIndex = 0; lineIndex < arrangement.lines.length; lineIndex += 1) {
+      const relativeIndex =
+        (lineIndex - runStart + arrangement.sides) % arrangement.sides;
+      region = clipPolygonToLineSide(
+        region,
+        arrangement.lines[lineIndex],
+        relativeIndex < outsideRunLength,
+      );
+      if (region.length < 3) break;
+    }
+    if (region.length >= 3 && Math.abs(signedArea(region)) > EPS) {
+      regions.push({ id: runStart, vertices: region });
+    }
+  }
+
+  return regions;
+}
+
+export function buildOutermostOrbitMap(
+  arrangement: Arrangement,
+  symmetry: Symmetry,
+): OrbitMap {
+  const outsideRunLength = Math.ceil(arrangement.sides / 2);
+  const directions = Array.from({ length: arrangement.sides }, (_, runStart) => {
+    const sum = { x: 0, y: 0 };
+    for (let offset = 0; offset < outsideRunLength; offset += 1) {
+      const normal = arrangement.lines[(runStart + offset) % arrangement.sides].normal;
+      sum.x += normal.x;
+      sum.y += normal.y;
+    }
+    const magnitude = Math.hypot(sum.x, sum.y);
+    return { x: sum.x / magnitude, y: sum.y / magnitude };
+  });
+  const parent = directions.map((_, id) => id);
+  const find = (id: number): number => {
+    if (parent[id] !== id) parent[id] = find(parent[id]);
+    return parent[id];
+  };
+  const union = (a: number, b: number) => {
+    const rootA = find(a);
+    const rootB = find(b);
+    if (rootA !== rootB) parent[Math.max(rootA, rootB)] = Math.min(rootA, rootB);
+  };
+  const closestDirection = (point: Point) => {
+    let bestId = 0;
+    let bestAlignment = Number.NEGATIVE_INFINITY;
+    for (let id = 0; id < directions.length; id += 1) {
+      const alignment = dot(point, directions[id]);
+      if (alignment > bestAlignment) {
+        bestId = id;
+        bestAlignment = alignment;
+      }
+    }
+    return bestId;
+  };
+
+  for (let cellId = 0; cellId < directions.length; cellId += 1) {
+    for (let step = 0; step < symmetry.order; step += 1) {
+      union(cellId, closestDirection(transform(directions[cellId], symmetry, step, false)));
+      if (symmetry.family === "D") {
+        union(cellId, closestDirection(transform(directions[cellId], symmetry, step, true)));
+      }
+    }
+  }
+
+  const groups = new Map<number, number[]>();
+  for (let cellId = 0; cellId < directions.length; cellId += 1) {
+    const root = find(cellId);
+    const members = groups.get(root) ?? [];
+    members.push(cellId);
+    groups.set(root, members);
+  }
+  const orbits = [...groups.values()]
+    .sort((a, b) => a[0] - b[0])
+    .map((cellIds, id) => ({ id, layer: outsideRunLength, cellIds }));
+  const byCell = new Map<number, Orbit>();
+  for (const orbit of orbits) {
+    for (const cellId of orbit.cellIds) byCell.set(cellId, orbit);
+  }
+  return { orbits, byCell };
 }
 
 export function buildOrbitMap(arrangement: Arrangement, symmetry: Symmetry): OrbitMap {

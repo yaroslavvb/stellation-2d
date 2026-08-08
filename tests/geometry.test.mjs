@@ -5,7 +5,9 @@ import {
   buildFacetting,
   buildFacettingDiagram,
   buildOrbitMap,
+  buildOutermostOrbitMap,
   facettingOptions,
+  outermostCellRegions,
   supportClosure,
 } from "../app/geometry.ts";
 
@@ -73,6 +75,91 @@ test("every diagram has one central segment representing the original polygon ed
     assert.equal(edgeSegments.length, 1, `${sides}-gon`);
     assert.ok(edgeSegments[0].t0 < 0, `${sides}-gon left endpoint`);
     assert.ok(edgeSegments[0].t1 > 0, `${sides}-gon right endpoint`);
+  }
+});
+
+test("outermost unbounded cells form one clipped wedge per polygon side", () => {
+  for (let sides = 3; sides <= 18; sides += 1) {
+    const arrangement = buildArrangement(sides);
+    const clipExtent = arrangement.extent * 3;
+    const regions = outermostCellRegions(arrangement, {
+      minX: -clipExtent,
+      maxX: clipExtent,
+      minY: -clipExtent,
+      maxY: clipExtent,
+    });
+
+    assert.equal(regions.length, sides, `${sides}-gon wedge count`);
+    assert.deepEqual(
+      regions.map((region) => region.id),
+      Array.from({ length: sides }, (_, id) => id),
+      `${sides}-gon stable outer-cell ids`,
+    );
+    for (const region of regions) {
+      assert.ok(region.vertices.length >= 3, `${sides}-gon polygon vertices`);
+      assert.ok(
+        region.vertices.some(
+          (point) =>
+            Math.abs(Math.abs(point.x) - clipExtent) < 1e-7 ||
+            Math.abs(Math.abs(point.y) - clipExtent) < 1e-7,
+        ),
+        `${sides}-gon wedge reaches clip boundary`,
+      );
+      const sample = region.vertices.reduce(
+        (sum, point) => ({
+          x: sum.x + point.x / region.vertices.length,
+          y: sum.y + point.y / region.vertices.length,
+        }),
+        { x: 0, y: 0 },
+      );
+      const outsideCount = arrangement.lines.filter(
+        (line) => sample.x * line.normal.x + sample.y * line.normal.y > line.offset + 1e-7,
+      ).length;
+      assert.equal(outsideCount, Math.ceil(sides / 2), `${sides}-gon outer layer`);
+    }
+  }
+});
+
+test("outermost orbit maps partition every wedge under full and individual symmetries", () => {
+  const expectedIds = (sides) => Array.from({ length: sides }, (_, id) => id);
+  const assertPartition = (orbitMap, sides, label) => {
+    const members = orbitMap.orbits.flatMap((orbit) => orbit.cellIds);
+    assert.deepEqual([...members].sort((a, b) => a - b), expectedIds(sides), `${label} members`);
+    assert.equal(new Set(members).size, sides, `${label} unique membership`);
+    assert.deepEqual(
+      orbitMap.orbits.map((orbit) => orbit.id),
+      Array.from({ length: orbitMap.orbits.length }, (_, id) => id),
+      `${label} stable orbit ids`,
+    );
+    for (const orbit of orbitMap.orbits) {
+      assert.equal(orbit.layer, Math.ceil(sides / 2), `${label} outer layer`);
+      for (const cellId of orbit.cellIds) {
+        assert.equal(orbitMap.byCell.get(cellId), orbit, `${label} by-cell lookup ${cellId}`);
+      }
+    }
+  };
+
+  for (let sides = 3; sides <= 18; sides += 1) {
+    const arrangement = buildArrangement(sides);
+    for (const symmetry of [
+      { family: "D", order: sides },
+      { family: "C", order: sides },
+    ]) {
+      const label = `${symmetry.family}${symmetry.order}`;
+      const orbitMap = buildOutermostOrbitMap(arrangement, symmetry);
+      assertPartition(orbitMap, sides, label);
+      assert.equal(orbitMap.orbits.length, 1, `${label} transitive orbit`);
+      assert.deepEqual(orbitMap.orbits[0].cellIds, expectedIds(sides), `${label} complete orbit`);
+    }
+
+    const individual = buildOutermostOrbitMap(arrangement, { family: "C", order: 1 });
+    assertPartition(individual, sides, `C1 on ${sides}-gon`);
+    assert.equal(individual.orbits.length, sides, `C1 on ${sides}-gon singleton count`);
+    assert.deepEqual(
+      individual.orbits.map((orbit) => orbit.cellIds),
+      expectedIds(sides).map((id) => [id]),
+      `C1 on ${sides}-gon singleton cells`,
+    );
   }
 });
 

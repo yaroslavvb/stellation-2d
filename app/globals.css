@@ -397,6 +397,26 @@ kbd {
   background-color: color-mix(in srgb, var(--lower) 17%, transparent);
 }
 
+.outermost-region {
+  fill: var(--outermost-color);
+  fill-opacity: 0;
+  stroke: none;
+  pointer-events: none;
+  transition: fill-opacity 120ms ease;
+}
+
+.outermost-region.is-preview {
+  fill-opacity: 0.1;
+}
+
+.outermost-region.is-selected {
+  fill-opacity: 0.2;
+}
+
+.outermost-region.is-selected.is-preview {
+  fill-opacity: 0.25;
+}
+
 .spatial-canvas:active,
 .diagram-canvas:active {
   cursor: grabbing;
@@ -620,6 +640,10 @@ kbd {
   stroke-dasharray: 3px 4px;
 }
 
+.diagram-occupancy.outermost {
+  stroke-width: 2px;
+}
+
 .diagram-occupancy.is-occupied {
   stroke-dasharray: none;
   opacity: 1;
@@ -669,8 +693,29 @@ kbd {
   font-weight: 700;
 }
 
+.diagram-outer-label {
+  fill: var(--dim);
+  font: 600 9px/1 var(--sans);
+  letter-spacing: 0.04em;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+  transition: fill 100ms ease, opacity 100ms ease;
+}
+
+.diagram-outer-label.is-preview,
+.diagram-outer-label.is-selected {
+  fill: var(--outermost-color);
+}
+
+.diagram-outer-label.is-selected {
+  font-weight: 700;
+}
+
 .diagram-hit {
   fill: transparent;
+  stroke: none;
+  outline: none;
   cursor: pointer;
 }
 
@@ -679,15 +724,25 @@ kbd {
   pointer-events: none;
 }
 
-.diagram-hit:focus-visible {
+.diagram-outer-hit {
+  fill: transparent;
+  stroke: none;
   outline: none;
+  cursor: pointer;
 }
 
 .diagram-plane-hit {
   fill: transparent;
+  stroke: none;
+  outline: none;
   cursor: pointer;
 }
 
+.diagram-hit:focus,
+.diagram-hit:focus-visible,
+.diagram-outer-hit:focus,
+.diagram-outer-hit:focus-visible,
+.diagram-plane-hit:focus,
 .diagram-plane-hit:focus-visible {
   outline: none;
 }

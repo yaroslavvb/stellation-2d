@@ -1,5 +1,5 @@
 export type DiagramSide = "above" | "below";
-export type DiagramAction = DiagramSide | "plane";
+export type DiagramAction = DiagramSide | "outer" | "plane";
 
 export type DiagramNeighbors = {
   aboveCellId: number | null;
