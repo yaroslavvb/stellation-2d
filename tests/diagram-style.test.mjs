@@ -13,6 +13,15 @@ test("active diagram intervals use the rail's exact stroke width without a halo"
   assert.doesNotMatch(boundary, /stroke-width|drop-shadow/);
 });
 
+test("facetting link radios suppress browser outline artifacts", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const focusedPair = css.match(/\.facet-link-pair:focus-visible\s*\{([^}]*)\}/)?.[1] ?? "";
+  const focusRow = css.match(/\.facet-link-pair:focus-visible \.facet-link-row\s*\{([^}]*)\}/)?.[1] ?? "";
+
+  assert.match(focusedPair, /outline:\s*none\s*;/);
+  assert.match(focusRow, /stroke:\s*var\(--cyan\)\s*;/);
+});
+
 test("uses the canonical Stellation palette foundations and layer sequence", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   for (const token of [

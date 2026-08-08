@@ -6,6 +6,7 @@ import {
   diagramSpanForMatchingSpatialScale,
   diagramViewportPosition,
   isDiagramDrag,
+  spatialLengthInDiagramUnits,
 } from "../app/diagram-interaction.ts";
 import { buildArrangement, buildFacetting } from "../app/geometry.ts";
 
@@ -92,4 +93,27 @@ test("scales standalone and fallback diagram spans with spatial zoom", () => {
     assert.equal(diagramSpanAtZoom(24, zoom), 24 / zoom);
   }
   assert.equal(diagramSpanAtZoom(24, 2 * 1.5), 8);
+});
+
+test("maps facetting chord lengths into the diagram at the spatial pixel scale", () => {
+  const diagramUnits = spatialLengthInDiagramUnits(
+    1.5,
+    6,
+    1600,
+    700,
+    1600,
+  );
+  const diagramPixels = diagramUnits * (1600 / 1000);
+  const spatialPixels = 1.5 * (700 / 6);
+
+  assert.ok(Math.abs(diagramPixels - spatialPixels) < 1e-10);
+
+  const zoomedUnits = spatialLengthInDiagramUnits(
+    1.5,
+    6 / 2,
+    1600,
+    700,
+    1600,
+  );
+  assert.ok(Math.abs(zoomedUnits / diagramUnits - 2) < 1e-10);
 });

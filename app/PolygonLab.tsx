@@ -3,7 +3,6 @@
 import {
   buildArrangement,
   buildFacetting,
-  buildFacettingDiagram,
   buildOrbitMap,
   facettingOptions,
   selectedBoundary,
@@ -25,6 +24,7 @@ import {
   diagramViewportPosition,
   diagramCellForSide,
   isDiagramDrag,
+  spatialLengthInDiagramUnits,
   type DiagramSide,
 } from "./diagram-interaction";
 import { applySelectionAction, toggleActionForTargets } from "./selection";
@@ -310,9 +310,15 @@ export default function PolygonLab() {
     () => buildFacetting(arrangement, activeFacetStep),
     [activeFacetStep, arrangement],
   );
-  const facetDiagram = useMemo(
-    () => buildFacettingDiagram(arrangement),
-    [arrangement],
+  const facetLinks = useMemo(
+    () =>
+      facetOptions.map((option) => ({
+        ...option,
+        chordLength: buildFacetting(arrangement, option.step).chordLength,
+        leftVertexId: (sides - option.step) % sides,
+        rightVertexId: option.step % sides,
+      })),
+    [arrangement, facetOptions, sides],
   );
   const previewFacetting = useMemo(
     () =>
@@ -823,12 +829,29 @@ export default function PolygonLab() {
   const diagramStart = diagramCenter - diagramSpan / 2;
   const diagramX = (position: number) => diagramViewportPosition(position, diagramStart, diagramSpan);
   const diagramViewBox = "0 0 1000 100";
-  const facetDiagramSpan = diagramSpanAtZoom(
-    Math.max(1e-6, facetDiagram.extent[1] - facetDiagram.extent[0]) * 1.28,
-    view.zoom,
+  const maxFacetChordLength = Math.max(1e-6, ...facetLinks.map((link) => link.chordLength));
+  const facetLinkViewportWidth = Math.max(1, viewDimensions?.diagramWidth ?? 1000);
+  const facetLinkCenterX = facetLinkViewportWidth / 2;
+  const facetLinkSideGutter = facetLinkViewportWidth < 540 ? 42 : 120;
+  const facetLinkAvailableOffset = Math.max(40, facetLinkCenterX - facetLinkSideGutter);
+  const baseSpatialSpan = spatialExtent * 2.34;
+  const rawFacetLinkOffset = (chordLength: number) =>
+    viewDimensions
+      ? spatialLengthInDiagramUnits(
+          chordLength,
+          baseSpatialSpan,
+          viewDimensions.spatialWidth,
+          viewDimensions.spatialHeight,
+          viewDimensions.diagramWidth,
+          facetLinkViewportWidth,
+        )
+      : (chordLength / maxFacetChordLength) * facetLinkAvailableOffset;
+  const facetLinkFitScale = Math.min(
+    1,
+    facetLinkAvailableOffset / Math.max(1e-6, rawFacetLinkOffset(maxFacetChordLength)),
   );
-  const facetDiagramCenter = (facetDiagram.extent[0] + facetDiagram.extent[1]) / 2;
-  const facetDiagramViewBox = `${facetDiagramCenter - facetDiagramSpan / 2} 0 ${facetDiagramSpan} 100`;
+  const facetLinkOffset = (chordLength: number) =>
+    rawFacetLinkOffset(chordLength) * facetLinkFitScale * view.zoom;
   const activeFacetIndex = facetOptions.findIndex((option) => option.step === activeFacetStep);
 
   return (
@@ -1056,12 +1079,12 @@ export default function PolygonLab() {
             <div className="view-heading compact">
               <div>
                 <span className="eyebrow">
-                  {mode === "stellation" ? "1D view · side 1" : "1D facetting diagram · vertex 1"}
+                  {mode === "stellation" ? "1D view · side 1" : "Vertex-link view · reference vertex 1"}
                 </span>
                 <h2>
                   {mode === "stellation"
                     ? "Cells immediately above and below the line"
-                    : "Paired chord choices through the reference cut"}
+                    : "Two endpoints for each connection step"}
                 </h2>
               </div>
               {mode === "stellation" ? (
@@ -1070,9 +1093,9 @@ export default function PolygonLab() {
                   <span><i className="lower-key" /> below</span>
                 </div>
               ) : (
-                <div className="diagram-legend" aria-label="Facetting point legend">
-                  <span><i className="upper-key" /> selected pair</span>
-                  <span><i className="lower-key" /> candidate pairs</span>
+                <div className="diagram-legend" aria-label="Facetting step legend">
+                  <span><i className="facet-selected-key" /> selected step</span>
+                  <span><i className="facet-candidate-key" /> candidates</span>
                 </div>
               )}
             </div>
@@ -1236,81 +1259,69 @@ export default function PolygonLab() {
               </svg>
             ) : (
               <svg
-                className="diagram-canvas facet-diagram-canvas"
-                viewBox={facetDiagramViewBox}
+                className="diagram-canvas facet-link-canvas"
+                viewBox={`0 0 ${facetLinkViewportWidth} 100`}
                 preserveAspectRatio="none"
                 role="radiogroup"
-                aria-label={`Facetting diagram at vertex 1 with ${facetDiagram.pairs.length} valid chord-step pairs`}
+                aria-label={`Vertex-link diagram at vertex 1 with ${facetLinks.length} valid connection steps`}
                 onPointerLeave={() => setHoverFacetStep(null)}
               >
-                <line
-                  className="facet-diagram-axis"
-                  x1={facetDiagram.extent[0]}
-                  x2={facetDiagram.extent[1]}
-                  y1="50"
-                  y2="50"
-                />
-                <line
-                  className="facet-diagram-center"
-                  x1="0"
-                  x2="0"
-                  y1="31"
-                  y2="69"
-                />
-                {facetDiagram.pairs.map((pair) => {
-                  const option = facetOptions.find((candidate) => candidate.step === pair.step);
-                  if (!option) return null;
-                  const selectedPair = pair.step === activeFacetStep;
-                  const hoveredPair = pair.step === hoverFacetStep;
-                  const color = layerColor(pair.step - 1);
-                  const pointRadius = facetDiagramSpan * 0.0075;
+                {facetLinks.map((link, rowIndex) => {
+                  const selectedPair = link.step === activeFacetStep;
+                  const hoveredPair = link.step === hoverFacetStep;
+                  const color = layerColor(link.step - 1);
+                  const rowSpan = 100 / Math.max(1, facetLinks.length);
+                  const rowY = rowSpan * (rowIndex + 0.5);
+                  const rowHeight = Math.max(8, Math.min(16, rowSpan - 3));
+                  const offset = facetLinkOffset(link.chordLength);
+                  const leftX = facetLinkCenterX - offset;
+                  const rightX = facetLinkCenterX + offset;
                   return (
                     <g
-                      key={pair.step}
-                      className={`facet-point-pair ${selectedPair ? "is-selected" : ""} ${hoveredPair ? "is-hovered" : ""}`}
+                      key={link.step}
+                      className={`facet-link-pair ${selectedPair ? "is-selected" : ""} ${hoveredPair ? "is-hovered" : ""}`}
                       style={{ "--facet-color": color } as React.CSSProperties}
                       tabIndex={selectedPair ? 0 : -1}
                       role="radio"
                       aria-checked={selectedPair}
                       data-facet-radio="diagram"
-                      data-facet-step={pair.step}
-                      aria-label={`${facetSymbol(sides, pair.step)}, ${facetDescription(option)}`}
-                      onPointerEnter={() => setHoverFacetStep(pair.step)}
+                      data-facet-step={link.step}
+                      aria-label={`${facetSymbol(sides, link.step)}: connect vertex 1 to vertices ${link.leftVertexId + 1} and ${link.rightVertexId + 1}, ${facetDescription(link)}`}
+                      onPointerEnter={() => setHoverFacetStep(link.step)}
                       onPointerLeave={() => setHoverFacetStep(null)}
-                      onClick={() => commitFacet(pair.step, `Selected ${facetSymbol(sides, pair.step)} · ${facetDescription(option)}`)}
+                      onFocus={() => setHoverFacetStep(link.step)}
+                      onBlur={() => setHoverFacetStep(null)}
+                      onClick={() => commitFacet(link.step, `Selected ${facetSymbol(sides, link.step)} · ${facetDescription(link)}`)}
                       onKeyDown={(event) => {
-                        if (moveFacetRadio(event, pair.step, "diagram")) return;
+                        if (moveFacetRadio(event, link.step, "diagram")) return;
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          commitFacet(pair.step, `Selected ${facetSymbol(sides, pair.step)} · ${facetDescription(option)}`);
+                          commitFacet(link.step, `Selected ${facetSymbol(sides, link.step)} · ${facetDescription(link)}`);
                         }
                       }}
                     >
-                      {pair.points.map((point, pointIndex) => (
-                        <g key={point.targetVertexId}>
-                          <ellipse
-                            className="facet-point"
-                            cx={point.position}
-                            cy="50"
-                            rx={pointRadius}
-                            ry="4.2"
-                          />
-                          <ellipse
-                            className="facet-point-hit"
-                            cx={point.position}
-                            cy="50"
-                            rx={pointRadius * 3.2}
-                            ry="18"
-                          />
-                          <text
-                            className="facet-point-label"
-                            x={point.position}
-                            y={pointIndex === 0 ? 31 : 74}
-                          >
-                            k{pair.step}
-                          </text>
-                        </g>
-                      ))}
+                      <rect
+                        className="facet-link-row"
+                        x="4"
+                        y={rowY - rowHeight / 2}
+                        width={facetLinkViewportWidth - 8}
+                        height={rowHeight}
+                        rx="4"
+                      />
+                      <text className="facet-link-symbol" x="12" y={rowY}>
+                        {facetSymbol(sides, link.step)}
+                      </text>
+                      <text className="facet-link-description" x={facetLinkViewportWidth - 12} y={rowY}>
+                        {facetDescription(link)}
+                      </text>
+                      <line className="facet-link-arm" x1={facetLinkCenterX} x2={leftX} y1={rowY} y2={rowY} />
+                      <line className="facet-link-arm" x1={facetLinkCenterX} x2={rightX} y1={rowY} y2={rowY} />
+                      <ellipse className="facet-link-node is-target" cx={leftX} cy={rowY} rx="10" ry="4.5" />
+                      <ellipse className="facet-link-node is-reference" cx={facetLinkCenterX} cy={rowY} rx="10" ry="4.5" />
+                      <ellipse className="facet-link-node is-target" cx={rightX} cy={rowY} rx="10" ry="4.5" />
+                      <text className="facet-link-node-label target" x={leftX} y={rowY}>{link.leftVertexId + 1}</text>
+                      <text className="facet-link-node-label reference" x={facetLinkCenterX} y={rowY}>1</text>
+                      <text className="facet-link-node-label target" x={rightX} y={rowY}>{link.rightVertexId + 1}</text>
                     </g>
                   );
                 })}
@@ -1320,13 +1331,13 @@ export default function PolygonLab() {
               <span>
                 {mode === "stellation"
                   ? "interval lengths are geometric, not evenly spaced"
-                  : "each pair marks the two incident chords at vertex 1"}
+                  : "each row shows the two chords incident to vertex 1"}
               </span>
               <span>
                 {mode === "stellation" ? (
                   <>click above or below the line to toggle that cell</>
                 ) : (
-                  <>click a pair to choose the complete closed circuit</>
+                  <>click a row to choose the complete closed circuit</>
                 )}
               </span>
             </div>

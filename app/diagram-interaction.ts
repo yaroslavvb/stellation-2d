@@ -55,3 +55,32 @@ export function diagramSpanForMatchingSpatialScale(
   const spatialPixelsPerUnit = Math.min(spatialWidth, spatialHeight) / spatialSpan;
   return diagramWidth / (spatialPixelsPerUnit * diagramZoom);
 }
+
+export function spatialLengthInDiagramUnits(
+  length: number,
+  spatialSpan: number,
+  spatialWidth: number,
+  spatialHeight: number,
+  diagramWidth: number,
+  diagramViewportWidth = 1000,
+) {
+  if (
+    !Number.isFinite(length) ||
+    !Number.isFinite(spatialSpan) ||
+    !Number.isFinite(spatialWidth) ||
+    !Number.isFinite(spatialHeight) ||
+    !Number.isFinite(diagramWidth) ||
+    !Number.isFinite(diagramViewportWidth) ||
+    !(length >= 0) ||
+    !(spatialSpan > 0) ||
+    !(spatialWidth > 0) ||
+    !(spatialHeight > 0) ||
+    !(diagramWidth > 0) ||
+    !(diagramViewportWidth > 0)
+  ) {
+    throw new RangeError("Length, spans, and dimensions must be finite and non-negative.");
+  }
+
+  const spatialPixelsPerUnit = Math.min(spatialWidth, spatialHeight) / spatialSpan;
+  return length * spatialPixelsPerUnit * (diagramViewportWidth / diagramWidth);
+}
