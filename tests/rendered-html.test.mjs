@@ -38,10 +38,13 @@ test("server-renders Stellation by default with both construction modes availabl
   assert.match(html, /Supporting lines, stellation cells/);
   assert.match(html, /Cells immediately above and below the line/);
   assert.match(html, /<button type="button">clear<\/button>/);
-  assert.match(html, /<kbd>shift<\/kbd> toggle below/);
-  assert.match(html, /<kbd>ctrl \/ ⌥<\/kbd> toggle above/);
+  assert.match(html, /click above or below the line to toggle that cell/);
   assert.doesNotMatch(html, /diagram-band/);
   assert.equal(html.match(/class="diagram-interval/g)?.length, 3);
+  assert.equal(html.match(/data-diagram-side="above"/g)?.length, 3);
+  assert.equal(html.match(/data-diagram-side="below"/g)?.length, 3);
+  assert.match(html, /role="group" aria-label="One-dimensional arrangement/);
+  assert.equal(html.match(/aria-pressed="(?:true|false)" aria-label="Interval/g)?.length, 4);
   assert.match(html, /Stellation correspondence/);
   assert.match(html, /<b>5<\/b> lines/);
   assert.match(html, /<b>6<\/b> bounded cells/);

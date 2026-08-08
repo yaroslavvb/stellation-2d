@@ -4,6 +4,10 @@ export type ResolvedTheme = "light" | "dark";
 export const THEME_STORAGE_KEY = "theme";
 export const THEME_MEDIA_QUERY = "(prefers-color-scheme: dark)";
 export const DEFAULT_THEME_PREFERENCE: ThemePreference = "system";
+export const THEME_COLORS: Record<ResolvedTheme, string> = {
+  light: "#f2f4f7",
+  dark: "#0b0d11",
+};
 
 export function normalizeThemePreference(value: string | null | undefined): ThemePreference {
   if (value === "light" || value === "dark") return value;
@@ -52,5 +56,5 @@ export const THEME_BOOTSTRAP_SCRIPT = `(() => {
   root.dataset.themePref = preference;
   root.style.colorScheme = resolved;
   const themeColor = document.querySelector('meta[name="theme-color"]');
-  if (themeColor) themeColor.setAttribute("content", resolved === "dark" ? "#090b10" : "#f2f4f7");
+  if (themeColor) themeColor.setAttribute("content", resolved === "dark" ? "${THEME_COLORS.dark}" : "${THEME_COLORS.light}");
 })();`;

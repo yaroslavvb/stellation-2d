@@ -20,8 +20,10 @@ import {
   type LabMode,
 } from "./share-state";
 import {
-  diagramSideForModifiers,
-  type DiagramModifierKeys,
+  diagramViewportPosition,
+  diagramCellForSide,
+  isDiagramDrag,
+  type DiagramSide,
 } from "./diagram-interaction";
 import { applySelectionAction } from "./selection";
 import {
@@ -33,6 +35,7 @@ import {
   themePreferenceFromStorageChange,
   THEME_MEDIA_QUERY,
   THEME_STORAGE_KEY,
+  THEME_COLORS,
   type ThemePreference,
 } from "./theme";
 import {
@@ -76,6 +79,10 @@ const LAYER_COLORS = [
   "var(--layer-5)",
   "var(--layer-6)",
   "var(--layer-7)",
+  "var(--layer-8)",
+  "var(--layer-9)",
+  "var(--layer-10)",
+  "var(--layer-11)",
 ];
 
 const EMPTY_MODIFIERS: ModifierState = { shift: false, remove: false };
@@ -103,7 +110,7 @@ function applyThemePreference(preference: ThemePreference) {
   root.style.colorScheme = resolved;
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", resolved === "dark" ? "#090b10" : "#f2f4f7");
+    ?.setAttribute("content", THEME_COLORS[resolved]);
 }
 
 function getThemePreferenceSnapshot() {
@@ -230,6 +237,7 @@ export default function PolygonLab() {
   const [facetFuture, setFacetFuture] = useState<number[]>([]);
   const [hoverCell, setHoverCell] = useState<number | null>(null);
   const [hoverSegment, setHoverSegment] = useState<number | null>(null);
+  const [hoverDiagramSide, setHoverDiagramSide] = useState<DiagramSide | null>(null);
   const [hoverFacetStep, setHoverFacetStep] = useState<number | null>(null);
   const [modifiers, setModifiers] = useState<ModifierState>(EMPTY_MODIFIERS);
   const [copied, setCopied] = useState(false);
@@ -257,11 +265,14 @@ export default function PolygonLab() {
   const viewDrag = useRef<DragState | null>(null);
   const diagramDrag = useRef<{
     x: number;
+    y: number;
     center: number;
-    moved: number;
+    span: number;
+    pointerId: number;
+    dragged: boolean;
     segmentId: number | null;
+    side: DiagramSide | null;
   } | null>(null);
-  const diagramCtrlClickHandled = useRef(false);
   const parsedHash = useRef<ReturnType<typeof parseShareHash>>(null);
   const hashReady = useRef(false);
   const skipHashWrite = useRef(false);
@@ -308,26 +319,18 @@ export default function PolygonLab() {
       const orbit = orbitMap.byCell.get(hoverCell);
       for (const cellId of orbit?.cellIds ?? [hoverCell]) result.add(cellId);
     }
-    if (hoverSegment !== null) {
+    if (hoverSegment !== null && hoverDiagramSide !== null) {
       const segment = arrangement.diagram[hoverSegment];
-      const diagramSide = modifiers.shift
-        ? "below"
-        : modifiers.remove
-          ? "above"
-          : null;
-      const diagramCells = diagramSide === "above"
-        ? [segment?.aboveCellId]
-        : diagramSide === "below"
-          ? [segment?.belowCellId]
-          : [segment?.aboveCellId, segment?.belowCellId];
-      for (const cellId of diagramCells) {
-        if (cellId === null || cellId === undefined) continue;
-        const orbit = orbitMap.byCell.get(cellId);
-        for (const member of orbit?.cellIds ?? [cellId]) result.add(member);
+      if (segment) {
+        const cellId = diagramCellForSide(segment, hoverDiagramSide);
+        if (cellId !== null) {
+          const orbit = orbitMap.byCell.get(cellId);
+          for (const member of orbit?.cellIds ?? [cellId]) result.add(member);
+        }
       }
     }
     return result;
-  }, [arrangement, hoverCell, hoverSegment, modifiers, orbitMap]);
+  }, [arrangement, hoverCell, hoverDiagramSide, hoverSegment, orbitMap]);
 
   const commit = useCallback(
     (nextOrUpdater: Set<number> | ((current: Set<number>) => Set<number>), message: string) => {
@@ -501,6 +504,8 @@ export default function PolygonLab() {
     setFacetStep(1);
     setFacetPast([]);
     setFacetFuture([]);
+    setHoverSegment(null);
+    setHoverDiagramSide(null);
     setHoverFacetStep(null);
   };
 
@@ -509,6 +514,7 @@ export default function PolygonLab() {
     setMode(nextMode);
     setHoverCell(null);
     setHoverSegment(null);
+    setHoverDiagramSide(null);
     setHoverFacetStep(null);
     setStatus(
       nextMode === "stellation"
@@ -581,43 +587,47 @@ export default function PolygonLab() {
   };
 
   const diagramPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
-    diagramCtrlClickHandled.current = false;
     if (event.button === 2) return;
-    const target = (event.target as Element).closest<SVGElement>("[data-segment-id]");
+    const target = (event.target as Element).closest<SVGElement>("[data-diagram-side]");
+    const side = target?.dataset.diagramSide;
     diagramDrag.current = {
       x: event.clientX,
+      y: event.clientY,
       center: diagramCenter,
-      moved: 0,
+      span: diagramSpan,
+      pointerId: event.pointerId,
+      dragged: false,
       segmentId: target ? Number(target.dataset.segmentId) : null,
+      side: side === "above" || side === "below" ? side : null,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const diagramPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     const drag = diagramDrag.current;
-    if (!drag) return;
+    if (!drag || drag.pointerId !== event.pointerId) return;
     const dx = event.clientX - drag.x;
-    drag.moved = Math.max(drag.moved, Math.abs(dx));
-    if (drag.moved < 3) return;
-    const baseSpan = arrangement.diagramExtent[1] - arrangement.diagramExtent[0];
+    const dy = event.clientY - drag.y;
+    if (!drag.dragged && !isDiagramDrag(dx, dy)) return;
+    drag.dragged = true;
     const bounds = event.currentTarget.getBoundingClientRect();
     setDiagramView((current) => ({
       ...current,
-      center: drag.center - (dx / bounds.width) * (baseSpan / current.zoom),
+      center: drag.center - (dx / bounds.width) * drag.span,
     }));
   };
 
   const diagramPointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
     const drag = diagramDrag.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
     diagramDrag.current = null;
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
     } catch {
       // The pointer may already have been released by the browser.
     }
-    if (!drag || drag.moved >= 4 || drag.segmentId === null) return;
-    diagramCtrlClickHandled.current = Boolean(event.ctrlKey);
-    actOnDiagram(drag.segmentId, event);
+    if (drag.dragged || drag.segmentId === null || drag.side === null) return;
+    actOnDiagram(drag.segmentId, drag.side);
   };
 
   const diagramWheel = (event: React.WheelEvent<SVGSVGElement>) => {
@@ -629,14 +639,9 @@ export default function PolygonLab() {
     }));
   };
 
-  const actOnDiagram = (
-    segmentId: number,
-    event: DiagramModifierKeys,
-  ) => {
+  const actOnDiagram = (segmentId: number, side: DiagramSide) => {
     const segment = arrangement.diagram[segmentId];
-    const side = diagramSideForModifiers(event);
-    if (!side) return;
-    const cellId = side === "below" ? segment.belowCellId : segment.aboveCellId;
+    const cellId = diagramCellForSide(segment, side);
     if (cellId === null) {
       setStatus(`No bounded cell ${side} this interval`);
       return;
@@ -711,7 +716,7 @@ export default function PolygonLab() {
   const diagramSpan = (baseDiagramSpan * 1.14) / diagramView.zoom;
   const diagramCenter = diagramView.center || (arrangement.diagramExtent[0] + arrangement.diagramExtent[1]) / 2;
   const diagramStart = diagramCenter - diagramSpan / 2;
-  const diagramX = (position: number) => ((position - diagramStart) / diagramSpan) * 1000;
+  const diagramX = (position: number) => diagramViewportPosition(position, diagramStart, diagramSpan);
   const diagramViewBox = "0 0 1000 100";
   const facetDiagramSpan = Math.max(1e-6, facetDiagram.extent[1] - facetDiagram.extent[0]) * 1.28;
   const facetDiagramCenter = (facetDiagram.extent[0] + facetDiagram.extent[1]) / 2;
@@ -969,15 +974,23 @@ export default function PolygonLab() {
               className="diagram-canvas"
               viewBox={diagramViewBox}
               preserveAspectRatio="none"
-              role="img"
+              role="group"
               aria-label="One-dimensional arrangement along the bottom side of the polygon"
               onPointerDown={diagramPointerDown}
               onPointerMove={diagramPointerMove}
               onPointerUp={diagramPointerUp}
-              onPointerCancel={() => { diagramDrag.current = null; }}
+              onPointerCancel={(event) => {
+                if (diagramDrag.current?.pointerId === event.pointerId) diagramDrag.current = null;
+              }}
+              onLostPointerCapture={(event) => {
+                if (diagramDrag.current?.pointerId === event.pointerId) diagramDrag.current = null;
+              }}
               onWheel={diagramWheel}
               onDoubleClick={() => setDiagramView({ center: 0, zoom: 1 })}
-              onPointerLeave={() => setHoverSegment(null)}
+              onPointerLeave={() => {
+                setHoverSegment(null);
+                setHoverDiagramSide(null);
+              }}
             >
               <line
                 className="diagram-rail"
@@ -994,19 +1007,11 @@ export default function PolygonLab() {
                 const upperSelected = upperCell ? selected.has(upperCell.id) : false;
                 const lowerSelected = lowerCell ? selected.has(lowerCell.id) : false;
                 const hovering = hoverSegment === segment.id;
-                const previewSide = hovering
-                  ? modifiers.shift
-                    ? "below"
-                    : modifiers.remove
-                      ? "above"
-                      : null
-                  : null;
+                const previewSide = hovering ? hoverDiagramSide : null;
                 const previewCell = previewSide === "above" ? upperCell : previewSide === "below" ? lowerCell : null;
-                const previewing = previewSide !== null && previewCell !== null;
-                const shownUpperSelected = previewing && previewSide === "above" ? !upperSelected : upperSelected;
-                const shownLowerSelected = previewing && previewSide === "below" ? !lowerSelected : lowerSelected;
-                const boundaryCell = shownUpperSelected !== shownLowerSelected
-                  ? shownUpperSelected
+                const previewing = previewCell !== null;
+                const boundaryCell = upperSelected !== lowerSelected
+                  ? upperSelected
                     ? upperCell
                     : lowerCell
                   : null;
@@ -1046,27 +1051,74 @@ export default function PolygonLab() {
                       <line className="diagram-tick" x1={x1} x2={x1} y1="44" y2="56" />
                     ) : null}
                     <rect
-                      className="diagram-hit"
+                      className={`diagram-hit above ${upperCell ? "" : "is-empty"}`}
                       x={x0}
                       y="4"
                       width={width}
-                      height="92"
+                      height="46"
                       data-segment-id={segment.id}
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`Interval ${segment.id + 1}. Shift toggles ${lowerOrbit ? orbitName(lowerOrbit) : "no cell"} below. Control or Option toggles ${upperOrbit ? orbitName(upperOrbit) : "no cell"} above.`}
-                      onPointerEnter={() => setHoverSegment(segment.id)}
-                      onContextMenu={(event) => {
-                        event.preventDefault();
-                        if (event.ctrlKey && !diagramCtrlClickHandled.current) {
-                          actOnDiagram(segment.id, event);
-                        }
-                        diagramCtrlClickHandled.current = false;
+                      data-diagram-side="above"
+                      tabIndex={upperCell ? 0 : -1}
+                      role={upperCell ? "button" : undefined}
+                      aria-disabled={!upperCell}
+                      aria-pressed={upperCell ? upperSelected : undefined}
+                      aria-label={`Interval ${segment.id + 1} above. Toggle ${upperOrbit ? orbitName(upperOrbit) : "no bounded cell"}.`}
+                      onPointerEnter={() => {
+                        setHoverSegment(segment.id);
+                        setHoverDiagramSide("above");
+                      }}
+                      onFocus={() => {
+                        setHoverSegment(segment.id);
+                        setHoverDiagramSide("above");
+                      }}
+                      onBlur={() => {
+                        setHoverSegment(null);
+                        setHoverDiagramSide(null);
+                      }}
+                      onContextMenu={(event) => event.preventDefault()}
+                      onClick={(event) => {
+                        if (event.detail === 0 && upperCell) actOnDiagram(segment.id, "above");
                       }}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          actOnDiagram(segment.id, event);
+                          actOnDiagram(segment.id, "above");
+                        }
+                      }}
+                    />
+                    <rect
+                      className={`diagram-hit below ${lowerCell ? "" : "is-empty"}`}
+                      x={x0}
+                      y="50"
+                      width={width}
+                      height="46"
+                      data-segment-id={segment.id}
+                      data-diagram-side="below"
+                      tabIndex={lowerCell ? 0 : -1}
+                      role={lowerCell ? "button" : undefined}
+                      aria-disabled={!lowerCell}
+                      aria-pressed={lowerCell ? lowerSelected : undefined}
+                      aria-label={`Interval ${segment.id + 1} below. Toggle ${lowerOrbit ? orbitName(lowerOrbit) : "no bounded cell"}.`}
+                      onPointerEnter={() => {
+                        setHoverSegment(segment.id);
+                        setHoverDiagramSide("below");
+                      }}
+                      onFocus={() => {
+                        setHoverSegment(segment.id);
+                        setHoverDiagramSide("below");
+                      }}
+                      onBlur={() => {
+                        setHoverSegment(null);
+                        setHoverDiagramSide(null);
+                      }}
+                      onContextMenu={(event) => event.preventDefault()}
+                      onClick={(event) => {
+                        if (event.detail === 0 && lowerCell) actOnDiagram(segment.id, "below");
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          actOnDiagram(segment.id, "below");
                         }
                       }}
                     />
@@ -1164,7 +1216,7 @@ export default function PolygonLab() {
               </span>
               <span>
                 {mode === "stellation" ? (
-                  <><kbd>shift</kbd> toggle below · <kbd>ctrl / ⌥</kbd> toggle above</>
+                  <>click above or below the line to toggle that cell</>
                 ) : (
                   <>click a pair to choose the complete closed circuit</>
                 )}

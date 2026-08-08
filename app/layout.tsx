@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { THEME_BOOTSTRAP_SCRIPT } from "./theme";
+import { THEME_BOOTSTRAP_SCRIPT, THEME_COLORS } from "./theme";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://yaroslavvb.github.io/stellation-2d/"),
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#090b10",
+  themeColor: THEME_COLORS.dark,
   colorScheme: "light dark",
 };
 

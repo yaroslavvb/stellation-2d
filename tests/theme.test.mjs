@@ -8,6 +8,7 @@ import {
   resolveTheme,
   storedThemePreference,
   THEME_BOOTSTRAP_SCRIPT,
+  THEME_COLORS,
   THEME_STORAGE_KEY,
   themePreferenceFromStorageChange,
 } from "../app/theme.ts";
@@ -39,6 +40,7 @@ function runBootstrap(stored, systemDark, storageThrows = false) {
 test("defaults missing and invalid preferences to System", () => {
   assert.equal(DEFAULT_THEME_PREFERENCE, "system");
   assert.equal(THEME_STORAGE_KEY, "theme");
+  assert.deepEqual(THEME_COLORS, { light: "#f2f4f7", dark: "#0b0d11" });
   assert.equal(normalizeThemePreference(null), "system");
   assert.equal(normalizeThemePreference(undefined), "system");
   assert.equal(normalizeThemePreference("unknown"), "system");
@@ -91,7 +93,7 @@ test("pre-paint bootstrap resolves stored and blocked-storage preferences", () =
     theme: "dark",
     themePref: "auto",
   });
-  assert.equal(systemDark.themeColor.content, "#090b10");
+  assert.equal(systemDark.themeColor.content, "#0b0d11");
 
   const blockedLightSystem = runBootstrap(null, false, true);
   assert.deepEqual(blockedLightSystem.root.dataset, {

@@ -3,30 +3,34 @@
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #090b10;
-  --panel: #101319;
-  --panel-raised: #151922;
-  --panel-soft: #0d1016;
-  --line: #262c38;
-  --line-strong: #394152;
-  --text: #f0f2f5;
-  --muted: #8992a3;
-  --dim: #737d8e;
-  --gold: #f4bd55;
-  --cyan: #67c9c2;
-  --upper: #8da8ff;
-  --lower: #f0ad62;
-  --add: #62d293;
-  --remove: #f07070;
-  --layer-0: #f4bd55;
-  --layer-1: #ef7d68;
-  --layer-2: #67c9c2;
-  --layer-3: #8da8ff;
-  --layer-4: #c18de3;
-  --layer-5: #91c56e;
-  --layer-6: #e6a45f;
-  --layer-7: #6fc4ec;
-  --construction-line: #6d7788;
+  --bg: #0b0d11;
+  --panel: #12151c;
+  --panel-raised: #171b24;
+  --panel-soft: #0e1014;
+  --line: #242a36;
+  --line-strong: #3a4252;
+  --text: #e6e9f0;
+  --muted: #8b93a7;
+  --dim: #8b93a7;
+  --gold: #f5b942;
+  --cyan: #6fa8ff;
+  --upper: #4da3f5;
+  --lower: #f5d24d;
+  --add: #4acb70;
+  --remove: #f05454;
+  --layer-0: #fac252;
+  --layer-1: #f28c4d;
+  --layer-2: #e06161;
+  --layer-3: #c7598c;
+  --layer-4: #9466b8;
+  --layer-5: #6180cc;
+  --layer-6: #4da6c7;
+  --layer-7: #52b89e;
+  --layer-8: #73bf73;
+  --layer-9: #adbf59;
+  --layer-10: #d9b359;
+  --layer-11: #b38c73;
+  --construction-line: rgba(205, 215, 240, 0.62);
   --grid-stroke: rgba(255, 255, 255, 0.028);
   --cell-label-ink: #11151c;
   --cell-label-outline: rgba(255, 255, 255, 0.78);
@@ -40,27 +44,31 @@
   --bg: #f2f4f7;
   --panel: #ffffff;
   --panel-raised: #f0f2f6;
-  --panel-soft: #f7f8fa;
+  --panel-soft: #ffffff;
   --line: #d9dee7;
-  --line-strong: #aeb8c8;
+  --line-strong: #aeb7c7;
   --text: #14181f;
   --muted: #5d6678;
-  --dim: #636e81;
-  --gold: #9b6500;
+  --dim: #5d6678;
+  --gold: #c8860a;
   --cyan: #2563c9;
-  --upper: #4f62bf;
-  --lower: #a85613;
-  --add: #218a49;
-  --remove: #c73535;
-  --layer-0: #ad7200;
-  --layer-1: #c64e40;
-  --layer-2: #17837d;
-  --layer-3: #5269c7;
-  --layer-4: #8c4fad;
-  --layer-5: #5c873b;
-  --layer-6: #ae6417;
-  --layer-7: #247fae;
-  --construction-line: #657084;
+  --upper: #2f7cc9;
+  --lower: #b98d10;
+  --add: #2fa855;
+  --remove: #d63c3c;
+  --layer-0: #fac252;
+  --layer-1: #f28c4d;
+  --layer-2: #e06161;
+  --layer-3: #c7598c;
+  --layer-4: #9466b8;
+  --layer-5: #6180cc;
+  --layer-6: #4da6c7;
+  --layer-7: #52b89e;
+  --layer-8: #73bf73;
+  --layer-9: #adbf59;
+  --layer-10: #d9b359;
+  --layer-11: #b38c73;
+  --construction-line: rgba(25, 25, 35, 0.72);
   --grid-stroke: rgba(20, 24, 31, 0.055);
 }
 
@@ -534,8 +542,9 @@ kbd {
 
 .diagram-rail {
   stroke: var(--text);
-  stroke-width: 1.5;
-  opacity: 0.92;
+  stroke-width: 4;
+  stroke-linecap: butt;
+  opacity: 0.3;
   vector-effect: non-scaling-stroke;
 }
 
@@ -549,26 +558,24 @@ kbd {
 .diagram-interval {
   opacity: 0.16;
   stroke: var(--text);
-  stroke-width: 2;
+  stroke-width: 4;
   stroke-linecap: butt;
   vector-effect: non-scaling-stroke;
-  transition: opacity 100ms ease, stroke-width 100ms ease;
+  transition: opacity 100ms ease, stroke 100ms ease;
 }
 
 .diagram-interval.is-boundary {
   opacity: 0.94;
-  stroke-width: 6;
-  filter: drop-shadow(0 0 2px color-mix(in srgb, currentColor 28%, transparent));
+  filter: none;
 }
 
 .diagram-interval.is-preview {
   opacity: 1;
-  stroke-width: 8;
 }
 
 .diagram-interval.is-internal {
   stroke: color-mix(in srgb, var(--text) 9%, transparent);
-  stroke-width: 2;
+  stroke-width: 4;
   stroke-dasharray: 4 5;
   filter: none;
 }
@@ -594,7 +601,20 @@ kbd {
 
 .diagram-hit {
   fill: transparent;
-  cursor: crosshair;
+  cursor: pointer;
+}
+
+.diagram-hit.is-empty {
+  cursor: default;
+  pointer-events: none;
+}
+
+.diagram-hit:focus-visible {
+  outline: none;
+  fill: color-mix(in srgb, var(--cyan) 8%, transparent);
+  stroke: var(--cyan);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
 }
 
 .facet-diagram-axis {
