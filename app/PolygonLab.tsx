@@ -20,6 +20,7 @@ import {
   type LabMode,
 } from "./share-state";
 import {
+  diagramSpanForMatchingSpatialScale,
   diagramViewportPosition,
   diagramCellForSide,
   isDiagramDrag,
@@ -70,6 +71,12 @@ type DragState = {
 };
 
 type ViewState = { x: number; y: number; zoom: number };
+
+type ViewDimensions = {
+  spatialWidth: number;
+  spatialHeight: number;
+  diagramWidth: number;
+};
 
 function freshViews(): Record<LabMode, ViewState> {
   return {
@@ -271,6 +278,9 @@ export default function PolygonLab() {
     [mode],
   );
   const [diagramView, setDiagramView] = useState({ center: 0, zoom: 1 });
+  const [viewDimensions, setViewDimensions] = useState<ViewDimensions | null>(null);
+  const spatialPanelRef = useRef<HTMLDivElement>(null);
+  const diagramPanelRef = useRef<HTMLDivElement>(null);
   const viewDrag = useRef<DragState | null>(null);
   const diagramDrag = useRef<{
     x: number;
@@ -472,6 +482,48 @@ export default function PolygonLab() {
       window.removeEventListener("keydown", update);
       window.removeEventListener("keyup", update);
       window.removeEventListener("blur", clear);
+    };
+  }, []);
+
+  useEffect(() => {
+    const measure = () => {
+      const spatialPanel = spatialPanelRef.current;
+      const diagramPanel = diagramPanelRef.current;
+      if (!spatialPanel || !diagramPanel) return;
+
+      const spatialBounds = spatialPanel.getBoundingClientRect();
+      const diagramBounds = diagramPanel.getBoundingClientRect();
+      if (
+        !(spatialBounds.width > 0) ||
+        !(spatialBounds.height > 0) ||
+        !(diagramBounds.width > 0)
+      ) return;
+
+      const next = {
+        spatialWidth: spatialBounds.width,
+        spatialHeight: spatialBounds.height,
+        diagramWidth: diagramBounds.width,
+      };
+      setViewDimensions((current) =>
+        current &&
+        current.spatialWidth === next.spatialWidth &&
+        current.spatialHeight === next.spatialHeight &&
+        current.diagramWidth === next.diagramWidth
+          ? current
+          : next,
+      );
+    };
+
+    measure();
+    const observer = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(measure);
+    if (spatialPanelRef.current) observer?.observe(spatialPanelRef.current);
+    if (diagramPanelRef.current) observer?.observe(diagramPanelRef.current);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
     };
   }, []);
 
@@ -753,7 +805,15 @@ export default function PolygonLab() {
   const viewBox = `${view.x - viewSpan / 2} ${view.y - viewSpan / 2} ${viewSpan} ${viewSpan}`;
   const lineRadius = arrangement.extent * 1.7;
   const baseDiagramSpan = Math.max(1e-6, arrangement.diagramExtent[1] - arrangement.diagramExtent[0]);
-  const diagramSpan = (baseDiagramSpan * 1.14) / diagramView.zoom;
+  const diagramSpan = viewDimensions
+    ? diagramSpanForMatchingSpatialScale(
+        viewSpan,
+        viewDimensions.spatialWidth,
+        viewDimensions.spatialHeight,
+        viewDimensions.diagramWidth,
+        diagramView.zoom,
+      )
+    : (baseDiagramSpan * 1.14) / diagramView.zoom;
   const diagramCenter = diagramView.center || (arrangement.diagramExtent[0] + arrangement.diagramExtent[1]) / 2;
   const diagramStart = diagramCenter - diagramSpan / 2;
   const diagramX = (position: number) => diagramViewportPosition(position, diagramStart, diagramSpan);
@@ -817,7 +877,7 @@ export default function PolygonLab() {
 
       <main className="app-main">
         <section className="stage" aria-label={`${mode === "stellation" ? "Stellation" : "Facetting"} views`}>
-          <div className="view-panel spatial-panel">
+          <div ref={spatialPanelRef} className="view-panel spatial-panel">
             <div className="view-heading">
               <div>
                 <span className="eyebrow">2D {mode}</span>
@@ -984,7 +1044,7 @@ export default function PolygonLab() {
             </div>
           </div>
 
-          <div className="view-panel diagram-panel">
+          <div ref={diagramPanelRef} className="view-panel diagram-panel">
             <div className="view-heading compact">
               <div>
                 <span className="eyebrow">

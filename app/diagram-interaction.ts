@@ -27,3 +27,24 @@ export function diagramViewportPosition(
   if (!(span > 0)) throw new RangeError("Diagram span must be positive.");
   return ((position - start) / span) * viewportWidth;
 }
+
+export function diagramSpanForMatchingSpatialScale(
+  spatialSpan: number,
+  spatialWidth: number,
+  spatialHeight: number,
+  diagramWidth: number,
+  diagramZoom = 1,
+) {
+  if (
+    !(spatialSpan > 0) ||
+    !(spatialWidth > 0) ||
+    !(spatialHeight > 0) ||
+    !(diagramWidth > 0) ||
+    !(diagramZoom > 0)
+  ) {
+    throw new RangeError("View spans, dimensions, and zoom must be positive.");
+  }
+
+  const spatialPixelsPerUnit = Math.min(spatialWidth, spatialHeight) / spatialSpan;
+  return diagramWidth / (spatialPixelsPerUnit * diagramZoom);
+}
