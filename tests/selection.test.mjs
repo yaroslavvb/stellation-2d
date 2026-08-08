@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applySelectionAction,
+  PLANE_SELECTION_ID,
   toggleActionForTargets,
 } from "../app/selection.ts";
 
@@ -32,5 +33,18 @@ test("selection actions add, remove, and toggle complete target orbits", () => {
   assert.deepEqual(
     [...applySelectionAction(new Set([0, 1]), [1, 2], "toggle")],
     [0, 1, 2],
+  );
+});
+
+test("the plane selection toggles independently of bounded cells", () => {
+  const selected = applySelectionAction(
+    new Set([0, 2]),
+    [PLANE_SELECTION_ID],
+    "toggle",
+  );
+  assert.deepEqual([...selected], [0, 2, PLANE_SELECTION_ID]);
+  assert.deepEqual(
+    [...applySelectionAction(selected, [PLANE_SELECTION_ID], "toggle")],
+    [0, 2],
   );
 });

@@ -64,6 +64,18 @@ test("all retained cells are bounded and every support edge descends one layer",
   }
 });
 
+test("every diagram has one central segment representing the original polygon edge", () => {
+  for (let sides = 3; sides <= 18; sides += 1) {
+    const arrangement = buildArrangement(sides);
+    const edgeSegments = arrangement.diagram.filter(
+      (segment) => segment.aboveCellId === arrangement.coreCellId,
+    );
+    assert.equal(edgeSegments.length, 1, `${sides}-gon`);
+    assert.ok(edgeSegments[0].t0 < 0, `${sides}-gon left endpoint`);
+    assert.ok(edgeSegments[0].t1 > 0, `${sides}-gon right endpoint`);
+  }
+});
+
 test("pentagon step 2 is a pentagram using only five original degree-two vertices", () => {
   const arrangement = buildArrangement(5);
   const facetting = buildFacetting(arrangement, 2);

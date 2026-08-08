@@ -8,6 +8,7 @@ export type ShareState = {
     order: number;
   };
   orbitIds: number[];
+  planeSelected: boolean;
   facetStep: number;
 };
 
@@ -16,6 +17,7 @@ export const DEFAULT_SHARE_STATE: ShareState = {
   sides: 5,
   symmetry: { family: "D", order: 5 },
   orbitIds: [0],
+  planeSelected: false,
   facetStep: 1,
 };
 
@@ -109,6 +111,7 @@ function parseV2Hash(value: string): ShareState | null {
     sides,
     symmetry,
     orbitIds,
+    planeSelected: params.get("pl") === "1",
     facetStep: normalizeFacetStep(rawFacetStep, sides),
   };
 }
@@ -136,6 +139,7 @@ function parseLegacyHash(value: string): ShareState | null {
     sides,
     symmetry,
     orbitIds,
+    planeSelected: false,
     facetStep: 1,
   };
 }
@@ -165,12 +169,14 @@ export function formatShareHash(state: ShareState): string {
   }
 
   const facetStep = normalizeFacetStep(state.facetStep, state.sides);
-  return [
+  const fields = [
     "#v=2",
     `mode=${state.mode}`,
     `n=${state.sides}`,
     `sym=${symmetry.family}${symmetry.order}`,
     `st=${orbitIds.join(",")}`,
-    `fa=${facetStep}`,
-  ].join("&");
+  ];
+  if (state.planeSelected) fields.push("pl=1");
+  fields.push(`fa=${facetStep}`);
+  return fields.join("&");
 }

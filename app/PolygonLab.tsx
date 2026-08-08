@@ -25,9 +25,14 @@ import {
   diagramCellForSide,
   isDiagramDrag,
   spatialLengthInDiagramUnits,
+  type DiagramAction,
   type DiagramSide,
 } from "./diagram-interaction";
-import { applySelectionAction, toggleActionForTargets } from "./selection";
+import {
+  applySelectionAction,
+  PLANE_SELECTION_ID,
+  toggleActionForTargets,
+} from "./selection";
 import { buildOrbitCardinalityPalette } from "./orbit-palette";
 import {
   DEFAULT_THEME_PREFERENCE,
@@ -216,8 +221,9 @@ function selectedOrbitIds(selected: Set<number>, orbitMap: ReturnType<typeof bui
 }
 
 function formatSelection(selected: Set<number>, orbitMap: ReturnType<typeof buildOrbitMap>) {
-  const orbitIds = selectedOrbitIds(selected, orbitMap);
-  return `{${orbitIds.join(",")}}`;
+  const entries = selectedOrbitIds(selected, orbitMap).map(String);
+  if (selected.has(PLANE_SELECTION_ID)) entries.unshift("plane");
+  return `{${entries.join(",")}}`;
 }
 
 function orbitName(orbit: Orbit) {
@@ -256,6 +262,7 @@ export default function PolygonLab() {
   const [hoverLayer, setHoverLayer] = useState<number | null>(null);
   const [hoverSegment, setHoverSegment] = useState<number | null>(null);
   const [hoverDiagramSide, setHoverDiagramSide] = useState<DiagramSide | null>(null);
+  const [hoverPlane, setHoverPlane] = useState(false);
   const [hoverFacetStep, setHoverFacetStep] = useState<number | null>(null);
   const [modifiers, setModifiers] = useState<ModifierState>(EMPTY_MODIFIERS);
   const [copied, setCopied] = useState(false);
@@ -296,7 +303,7 @@ export default function PolygonLab() {
     pointerId: number;
     dragged: boolean;
     segmentId: number | null;
-    side: DiagramSide | null;
+    action: DiagramAction | null;
   } | null>(null);
   const parsedHash = useRef<ReturnType<typeof parseShareHash>>(null);
   const hashReady = useRef(false);
@@ -330,6 +337,7 @@ export default function PolygonLab() {
   );
 
   const coreOrbit = orbitMap.byCell.get(arrangement.coreCellId);
+  const planeSelected = selected.has(PLANE_SELECTION_ID);
   const orbitCardinalityPalette = useMemo(
     () => buildOrbitCardinalityPalette(orbitMap.orbits.map((orbit) => orbit.cellIds.length)),
     [orbitMap.orbits],
@@ -577,6 +585,7 @@ export default function PolygonLab() {
     for (const orbitId of parsedHash.current.orbitIds) {
       for (const cellId of orbitMap.orbits[orbitId]?.cellIds ?? []) restored.add(cellId);
     }
+    if (parsedHash.current.planeSelected) restored.add(PLANE_SELECTION_ID);
     setSelected(restored);
     setStatus(
       parsedHash.current.mode === "facetting"
@@ -598,10 +607,11 @@ export default function PolygonLab() {
       sides,
       symmetry,
       orbitIds: selectedOrbitIds(selected, orbitMap),
+      planeSelected,
       facetStep: activeFacetStep,
     });
     window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
-  }, [activeFacetStep, mode, orbitMap, selected, sides, symmetry]);
+  }, [activeFacetStep, mode, orbitMap, planeSelected, selected, sides, symmetry]);
 
   const changeSides = (nextSides: number) => {
     setSides(nextSides);
@@ -612,6 +622,7 @@ export default function PolygonLab() {
     setHoverLayer(null);
     setHoverSegment(null);
     setHoverDiagramSide(null);
+    setHoverPlane(false);
     setHoverFacetStep(null);
   };
 
@@ -622,6 +633,7 @@ export default function PolygonLab() {
     setHoverLayer(null);
     setHoverSegment(null);
     setHoverDiagramSide(null);
+    setHoverPlane(false);
     setHoverFacetStep(null);
     setStatus(
       nextMode === "stellation"
@@ -636,7 +648,9 @@ export default function PolygonLab() {
     const next = { family: match[1] as "C" | "D", order: Number(match[2]) };
     const nextOrbitMap = buildOrbitMap(arrangement, next);
     setSelected((current) => {
-      return buildInvariantSet(current, nextOrbitMap);
+      const regrouped = buildInvariantSet(current, nextOrbitMap);
+      if (current.has(PLANE_SELECTION_ID)) regrouped.add(PLANE_SELECTION_ID);
+      return regrouped;
     });
     setSymmetry(next);
     setStatus(`Cells regrouped under ${next.family}${next.order}`);
@@ -695,8 +709,8 @@ export default function PolygonLab() {
 
   const diagramPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     if (event.button === 2) return;
-    const target = (event.target as Element).closest<SVGElement>("[data-diagram-side]");
-    const side = target?.dataset.diagramSide;
+    const target = (event.target as Element).closest<SVGElement>("[data-diagram-action]");
+    const action = target?.dataset.diagramAction;
     diagramDrag.current = {
       x: event.clientX,
       y: event.clientY,
@@ -705,7 +719,10 @@ export default function PolygonLab() {
       pointerId: event.pointerId,
       dragged: false,
       segmentId: target ? Number(target.dataset.segmentId) : null,
-      side: side === "above" || side === "below" ? side : null,
+      action:
+        action === "above" || action === "below" || action === "plane"
+          ? action
+          : null,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -733,8 +750,8 @@ export default function PolygonLab() {
     } catch {
       // The pointer may already have been released by the browser.
     }
-    if (drag.dragged || drag.segmentId === null || drag.side === null) return;
-    actOnDiagram(drag.segmentId, drag.side);
+    if (drag.dragged || drag.segmentId === null || drag.action === null) return;
+    actOnDiagram(drag.segmentId, drag.action);
   };
 
   const diagramWheel = (event: React.WheelEvent<SVGSVGElement>) => {
@@ -746,11 +763,20 @@ export default function PolygonLab() {
     }));
   };
 
-  const actOnDiagram = (segmentId: number, side: DiagramSide) => {
+  const actOnDiagram = (segmentId: number, action: DiagramAction) => {
     const segment = arrangement.diagram[segmentId];
-    const cellId = diagramCellForSide(segment, side);
+    if (!segment) return;
+    if (action === "plane") {
+      if (segment.aboveCellId !== arrangement.coreCellId) return;
+      commit(
+        (current) => applySelectionAction(current, [PLANE_SELECTION_ID], "toggle"),
+        planeSelected ? "Entire plane cleared" : "Entire plane selected",
+      );
+      return;
+    }
+    const cellId = diagramCellForSide(segment, action);
     if (cellId === null) {
-      setStatus(`No bounded cell ${side} this interval`);
+      setStatus(`No bounded cell ${action} this interval`);
       return;
     }
     const orbit = orbitMap.byCell.get(cellId);
@@ -801,6 +827,7 @@ export default function PolygonLab() {
         sides,
         symmetry,
         orbitIds: selectedOrbitIds(selected, orbitMap),
+        planeSelected,
         facetStep: activeFacetStep,
       });
       await navigator.clipboard.writeText(url.toString());
@@ -883,7 +910,7 @@ export default function PolygonLab() {
               <span><b>{sides}</b> lines</span>
               <span><b>{arrangement.cells.length}</b> bounded cells</span>
               <span><b>{maxLayer + 1}</b> layers</span>
-              <span><b>{selectedArea.toFixed(2)}</b> area</span>
+              <span><b>{planeSelected ? "∞" : selectedArea.toFixed(2)}</b> area</span>
             </>
           ) : (
             <>
@@ -932,7 +959,12 @@ export default function PolygonLab() {
             </div>
 
             <svg
-              className="spatial-canvas"
+              className={[
+                "spatial-canvas",
+                mode === "stellation" && planeSelected ? "is-plane-selected" : "",
+                mode === "stellation" && hoverPlane ? "is-plane-highlighted" : "",
+              ].filter(Boolean).join(" ")}
+              data-plane-selected={mode === "stellation" ? planeSelected : undefined}
               viewBox={viewBox}
               role="img"
               aria-label={
@@ -1132,6 +1164,7 @@ export default function PolygonLab() {
               onPointerLeave={() => {
                 setHoverSegment(null);
                 setHoverDiagramSide(null);
+                setHoverPlane(false);
               }}
             >
               <g aria-hidden="true">
@@ -1155,11 +1188,13 @@ export default function PolygonLab() {
                 const lowerCell = segment.belowCellId === null ? null : arrangement.cells[segment.belowCellId];
                 const upperOrbit = upperCell ? orbitMap.byCell.get(upperCell.id) : null;
                 const lowerOrbit = lowerCell ? orbitMap.byCell.get(lowerCell.id) : null;
+                const isReferenceEdge = upperCell?.id === arrangement.coreCellId;
                 const upperSelected = upperCell ? selected.has(upperCell.id) : false;
                 const lowerSelected = lowerCell ? selected.has(lowerCell.id) : false;
                 const hovering = hoverSegment === segment.id;
                 const previewAbove = hovering && hoverDiagramSide === "above" && upperCell !== null;
                 const previewBelow = hovering && hoverDiagramSide === "below" && lowerCell !== null;
+                const previewPlane = hovering && hoverPlane && isReferenceEdge;
                 const x0 = diagramX(segment.t0);
                 const x1 = diagramX(segment.t1);
                 const width = x1 - x0;
@@ -1205,6 +1240,15 @@ export default function PolygonLab() {
                         O{lowerOrbit.id + 1}
                       </text>
                     ) : null}
+                    {isReferenceEdge && width > 70 ? (
+                      <text
+                        className={`diagram-plane-label ${planeSelected ? "is-selected" : ""} ${previewPlane ? "is-preview" : ""}`}
+                        x={(x0 + x1) / 2}
+                        y={diagramY(89)}
+                      >
+                        plane
+                      </text>
+                    ) : null}
                     <line className="diagram-tick" x1={x0} x2={x0} y1={diagramY(44)} y2={diagramY(61)} />
                     {segment.id === arrangement.diagram.length - 1 ? (
                       <line className="diagram-tick" x1={x1} x2={x1} y1={diagramY(44)} y2={diagramY(61)} />
@@ -1212,10 +1256,11 @@ export default function PolygonLab() {
                     <rect
                       className={`diagram-hit above ${upperCell ? "" : "is-empty"}`}
                       x={x0}
-                      y={diagramY(4)}
+                      y={diagramY(42)}
                       width={width}
-                      height={diagramY(46)}
+                      height={diagramY(13)}
                       data-segment-id={segment.id}
+                      data-diagram-action="above"
                       data-diagram-side="above"
                       tabIndex={upperCell ? 0 : -1}
                       role={upperCell ? "button" : undefined}
@@ -1225,14 +1270,17 @@ export default function PolygonLab() {
                       onPointerEnter={() => {
                         setHoverSegment(segment.id);
                         setHoverDiagramSide("above");
+                        setHoverPlane(false);
                       }}
                       onFocus={() => {
                         setHoverSegment(segment.id);
                         setHoverDiagramSide("above");
+                        setHoverPlane(false);
                       }}
                       onBlur={() => {
                         setHoverSegment(null);
                         setHoverDiagramSide(null);
+                        setHoverPlane(false);
                       }}
                       onContextMenu={(event) => event.preventDefault()}
                       onClick={(event) => {
@@ -1248,10 +1296,11 @@ export default function PolygonLab() {
                     <rect
                       className={`diagram-hit below ${lowerCell ? "" : "is-empty"}`}
                       x={x0}
-                      y={diagramY(50)}
+                      y={diagramY(53)}
                       width={width}
-                      height={diagramY(46)}
+                      height={diagramY(25)}
                       data-segment-id={segment.id}
+                      data-diagram-action="below"
                       data-diagram-side="below"
                       tabIndex={lowerCell ? 0 : -1}
                       role={lowerCell ? "button" : undefined}
@@ -1261,14 +1310,17 @@ export default function PolygonLab() {
                       onPointerEnter={() => {
                         setHoverSegment(segment.id);
                         setHoverDiagramSide("below");
+                        setHoverPlane(false);
                       }}
                       onFocus={() => {
                         setHoverSegment(segment.id);
                         setHoverDiagramSide("below");
+                        setHoverPlane(false);
                       }}
                       onBlur={() => {
                         setHoverSegment(null);
                         setHoverDiagramSide(null);
+                        setHoverPlane(false);
                       }}
                       onContextMenu={(event) => event.preventDefault()}
                       onClick={(event) => {
@@ -1281,6 +1333,47 @@ export default function PolygonLab() {
                         }
                       }}
                     />
+                    {isReferenceEdge ? (
+                      <rect
+                        className="diagram-plane-hit"
+                        x={x0}
+                        y={diagramY(78)}
+                        width={width}
+                        height={diagramY(18)}
+                        data-segment-id={segment.id}
+                        data-diagram-action="plane"
+                        data-diagram-plane="true"
+                        tabIndex={0}
+                        role="button"
+                        aria-pressed={planeSelected}
+                        aria-label="Below the polygon edge. Toggle entire plane."
+                        onPointerEnter={() => {
+                          setHoverSegment(segment.id);
+                          setHoverDiagramSide(null);
+                          setHoverPlane(true);
+                        }}
+                        onFocus={() => {
+                          setHoverSegment(segment.id);
+                          setHoverDiagramSide(null);
+                          setHoverPlane(true);
+                        }}
+                        onBlur={() => {
+                          setHoverSegment(null);
+                          setHoverDiagramSide(null);
+                          setHoverPlane(false);
+                        }}
+                        onContextMenu={(event) => event.preventDefault()}
+                        onClick={(event) => {
+                          if (event.detail === 0) actOnDiagram(segment.id, "plane");
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            actOnDiagram(segment.id, "plane");
+                          }
+                        }}
+                      />
+                    ) : null}
                   </g>
                 );
               })}
@@ -1363,7 +1456,7 @@ export default function PolygonLab() {
               </span>
               <span>
                 {mode === "stellation" ? (
-                  <>click an upper or lower segment to toggle that cell</>
+                  <>click a segment for its cell · click plane below the polygon edge</>
                 ) : (
                   <>click a row to choose the complete closed circuit</>
                 )}

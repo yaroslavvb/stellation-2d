@@ -12,6 +12,7 @@ test("defines and formats the Stellation default", () => {
     sides: 5,
     symmetry: { family: "D", order: 5 },
     orbitIds: [0],
+    planeSelected: false,
     facetStep: 1,
   });
   assert.equal(
@@ -26,6 +27,7 @@ test("accepts legacy hashes as Stellation state", () => {
     sides: 5,
     symmetry: { family: "D", order: 5 },
     orbitIds: [0, 2],
+    planeSelected: false,
     facetStep: 1,
   });
   assert.deepEqual(parseShareHash("#p5%2FC5%2F%7B%7D"), {
@@ -33,6 +35,7 @@ test("accepts legacy hashes as Stellation state", () => {
     sides: 5,
     symmetry: { family: "C", order: 5 },
     orbitIds: [],
+    planeSelected: false,
     facetStep: 1,
   });
 });
@@ -44,6 +47,7 @@ test("round-trips both terminology modes through canonical v2 hashes", () => {
       sides: 8,
       symmetry: { family: "C", order: 2 },
       orbitIds: [0, 3, 9],
+      planeSelected: false,
       facetStep: 3,
     },
     {
@@ -51,6 +55,7 @@ test("round-trips both terminology modes through canonical v2 hashes", () => {
       sides: 5,
       symmetry: { family: "D", order: 5 },
       orbitIds: [0, 2],
+      planeSelected: true,
       facetStep: 2,
     },
   ];
@@ -66,12 +71,30 @@ test("round-trips a completely empty stellation selection", () => {
     sides: 5,
     symmetry: { family: "D", order: 5 },
     orbitIds: [],
+    planeSelected: false,
     facetStep: 1,
   };
 
   assert.equal(
     formatShareHash(state),
     "#v=2&mode=stellation&n=5&sym=D5&st=&fa=1",
+  );
+  assert.deepEqual(parseShareHash(formatShareHash(state)), state);
+});
+
+test("round-trips the optional entire-plane selection", () => {
+  const state = {
+    mode: "stellation",
+    sides: 5,
+    symmetry: { family: "D", order: 5 },
+    orbitIds: [0],
+    planeSelected: true,
+    facetStep: 1,
+  };
+
+  assert.equal(
+    formatShareHash(state),
+    "#v=2&mode=stellation&n=5&sym=D5&st=0&pl=1&fa=1",
   );
   assert.deepEqual(parseShareHash(formatShareHash(state)), state);
 });
@@ -98,6 +121,7 @@ test("defaults missing or malformed mode-specific fields without discarding shar
     sides: 8,
     symmetry: { family: "C", order: 2 },
     orbitIds: [4],
+    planeSelected: false,
     facetStep: 3,
   });
 
@@ -111,6 +135,7 @@ test("defaults missing or malformed mode-specific fields without discarding shar
       sides: 5,
       symmetry: { family: "D", order: 5 },
       orbitIds: [0],
+      planeSelected: false,
       facetStep: 2,
     });
   }
@@ -124,6 +149,7 @@ test("resets only an invalid or missing facet step to one", () => {
       sides: 5,
       symmetry: { family: "C", order: 5 },
       orbitIds: [0, 2],
+      planeSelected: false,
       facetStep: 1,
     });
   }
@@ -134,6 +160,7 @@ test("resets only an invalid or missing facet step to one", () => {
       sides: 5,
       symmetry: { family: "C", order: 5 },
       orbitIds: [0, 2],
+      planeSelected: false,
       facetStep: 99,
     }),
     "#v=2&mode=facetting&n=5&sym=C5&st=0,2&fa=1",
@@ -147,6 +174,7 @@ test("formats fields canonically and deduplicates sorted orbit ids", () => {
       sides: 10,
       symmetry: { family: "D", order: 2 },
       orbitIds: [7, 2, 7, 0, 2],
+      planeSelected: false,
       facetStep: 4,
     }),
     "#v=2&mode=facetting&n=10&sym=D2&st=0,2,7&fa=4",

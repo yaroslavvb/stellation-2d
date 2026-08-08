@@ -381,6 +381,20 @@ kbd {
 
 .spatial-canvas {
   cursor: grab;
+  background-color: transparent;
+  transition: background-color 120ms ease;
+}
+
+.spatial-canvas.is-plane-highlighted {
+  background-color: color-mix(in srgb, var(--lower) 7%, transparent);
+}
+
+.spatial-canvas.is-plane-selected {
+  background-color: color-mix(in srgb, var(--lower) 13%, transparent);
+}
+
+.spatial-canvas.is-plane-selected.is-plane-highlighted {
+  background-color: color-mix(in srgb, var(--lower) 17%, transparent);
 }
 
 .spatial-canvas:active,
@@ -636,6 +650,25 @@ kbd {
   pointer-events: none;
 }
 
+.diagram-plane-label {
+  fill: var(--dim);
+  font: 600 9px/1 var(--sans);
+  letter-spacing: 0.04em;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+  transition: fill 100ms ease, opacity 100ms ease;
+}
+
+.diagram-plane-label.is-preview,
+.diagram-plane-label.is-selected {
+  fill: var(--lower);
+}
+
+.diagram-plane-label.is-selected {
+  font-weight: 700;
+}
+
 .diagram-hit {
   fill: transparent;
   cursor: pointer;
@@ -647,6 +680,15 @@ kbd {
 }
 
 .diagram-hit:focus-visible {
+  outline: none;
+}
+
+.diagram-plane-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.diagram-plane-hit:focus-visible {
   outline: none;
 }
 

@@ -1,5 +1,7 @@
 export type SelectionAction = "add" | "remove" | "toggle";
 
+export const PLANE_SELECTION_ID = -1;
+
 export function toggleActionForTargets(
   current: ReadonlySet<number>,
   targets: Iterable<number>,

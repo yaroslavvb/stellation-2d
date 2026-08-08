@@ -38,6 +38,19 @@ test("diagram segment controls stay invisible while focus remains line-local", a
   assert.match(occupiedPreview, /stroke:\s*color-mix\(in srgb, var\(--diagram-track-color\) 74%, var\(--text\)\)\s*;/);
 });
 
+test("the plane control colors the field without drawing a selection box", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const selectedPlane = css.match(/\.spatial-canvas\.is-plane-selected\s*\{([^}]*)\}/)?.[1] ?? "";
+  const planeHit = css.match(/\.diagram-plane-hit\s*\{([^}]*)\}/)?.[1] ?? "";
+  const planeFocus = css.match(/\.diagram-plane-hit:focus-visible\s*\{([^}]*)\}/)?.[1] ?? "";
+
+  assert.match(selectedPlane, /background-color:\s*color-mix\(in srgb, var\(--lower\) 13%, transparent\)\s*;/);
+  assert.match(planeHit, /fill:\s*transparent\s*;/);
+  assert.match(planeHit, /cursor:\s*pointer\s*;/);
+  assert.match(planeFocus, /outline:\s*none\s*;/);
+  assert.doesNotMatch(planeFocus, /(?:^|\s)(?:fill|stroke|stroke-width):/m);
+});
+
 test("facetting link radios suppress browser outline artifacts", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const focusedPair = css.match(/\.facet-link-pair:focus-visible\s*\{([^}]*)\}/)?.[1] ?? "";
